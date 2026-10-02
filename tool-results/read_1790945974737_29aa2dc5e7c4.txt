@@ -1,0 +1,754 @@
+     1→"""
+     2→train.py — Main training entry point for the UPI Fraud Detection ML service.
+     3→
+     4→Run:
+     5→    python3 train.py
+     6→
+     7→Trains:
+     8→  - 3 transaction models (LR / RF / XGBoost) on PaySim, saves sklearn Pipelines.
+     9→  - 4 NLP models (Hindi / Hinglish / English / combined) TF-IDF + LogReg.
+    10→  - Drift reference distribution for PaySim numeric features.
+    11→
+    12→For adaptive retraining, this module also exposes reusable helpers used by
+    13→adaptive.py:
+    14→    TX_FEATURES, load_paysim_split,
+    15→    train_logreg_model, train_rf_model, train_xgboost_model,
+    16→    build_transaction_pipeline,
+    17→    compute_classification_metrics,
+    18→    load_nlp_data_for_language, train_nlp_pipeline,
+    19→    compute_classification_metrics_text
+    20→"""
+    21→from __future__ import annotations
+    22→import json
+    23→import os
+    24→import random
+    25→import sys
+    26→import time
+    27→import urllib.request
+    28→import urllib.error
+    29→import zipfile
+    30→import io
+    31→import re
+    32→import unicodedata
+    33→from datetime import datetime, timezone
+    34→from pathlib import Path
+    35→from typing import Dict, Any, List, Tuple, Optional
+    36→
+    37→import numpy as np
+    38→import pandas as pd
+    39→
+    40→import joblib
+    41→
+    42→from sklearn.pipeline import Pipeline
+    43→from sklearn.preprocessing import StandardScaler
+    44→from sklearn.feature_extraction.text import TfidfVectorizer
+    45→from sklearn.linear_model import LogisticRegression
+    46→from sklearn.ensemble import RandomForestClassifier
+    47→from sklearn.metrics import (
+    48→    precision_score, recall_score, f1_score, roc_auc_score,
+    49→    average_precision_score, confusion_matrix,
+    50→)
+    51→from sklearn.model_selection import GroupShuffleSplit
+    52→
+    53→import xgboost
+    54→
+    55→# Local drift_engine import for the reference distribution
+    56→from drift_engine import build_reference_distribution
+    57→
+    58→
+    59→# ---------------------------------------------------------------------------
+    60→# Paths & constants
+    61→# ---------------------------------------------------------------------------
+    62→BASE_DIR = Path(__file__).resolve().parent
+    63→DATA_DIR = BASE_DIR / "data" / "raw"
+    64→PAYSIM_DIR = DATA_DIR / "paysim"
+    65→MESSAGES_DIR = DATA_DIR / "messages"
+    66→MODELS_DIR = BASE_DIR / "models"
+    67→METADATA_DIR = BASE_DIR / "metadata"
+    68→ENGLISH_DIR = DATA_DIR / "english"
+    69→
+    70→PAYSIM_FILES = {
+    71→    "train": PAYSIM_DIR / "paysim_train_processed.csv",
+    72→    "validation": PAYSIM_DIR / "paysim_validation_processed.csv",
+    73→    "test": PAYSIM_DIR / "paysim_test_processed.csv",
+    74→}
+    75→
+    76→# Transaction features (drop `step` and `isFraud`)
+    77→TX_FEATURES: List[str] = [
+    78→    "amount", "oldbalanceOrg", "newbalanceOrig",
+    79→    "oldbalanceDest", "newbalanceDest",
+    80→    "orig_balance_change", "dest_balance_change",
+    81→    "amount_to_orig_balance", "amount_to_dest_balance",
+    82→    "type_CASH_IN", "type_CASH_OUT", "type_DEBIT",
+    83→    "type_PAYMENT", "type_TRANSFER",
+    84→]
+    85→
+    86→RANDOM_SEED = 42
+    87→DATASET_VERSION = "paysim_v1"
+    88→NLP_VERSION = "1.0.0"
+    89→TRANSACTION_VERSION = "1.0.0"
+    90→ENGLISH_DOWNLOAD_URL = (
+    91→    "https://archive.ics.uci.edu/ml/machine-learning-databases/"
+    92→    "00228/smsspamcollection.zip"
+    93→)
+    94→
+    95→
+    96→def iso_now() -> str:
+    97→    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    98→
+    99→
+   100→# ---------------------------------------------------------------------------
+   101→# Random seeds
+   102→# ---------------------------------------------------------------------------
+   103→def set_seeds(seed: int = RANDOM_SEED) -> None:
+   104→    random.seed(seed)
+   105→    np.random.seed(seed)
+   106→    # sklearn uses numpy RNG globally for many operations
+   107→    os.environ["PYTHONHASHSEED"] = str(seed)
+   108→    # XGBoost uses its own RNG; we pass random_state explicitly to each model.
+   109→    # For older xgboost versions, set the global seed too:
+   110→    try:
+   111→        from xgboost import set_config
+   112→        set_config(verbosity=0)
+   113→    except Exception:
+   114→        pass
+   115→
+   116→
+   117→# ---------------------------------------------------------------------------
+   118→# Data loaders
+   119→# ---------------------------------------------------------------------------
+   120→def load_paysim_split(name: str) -> pd.DataFrame:
+   121→    return pd.read_csv(PAYSIM_FILES[name])
+   122→
+   123→
+   124→def _normalize_text(s: str) -> str:
+   125→    """Lowercase, strip ASCII punctuation, but PRESERVE Unicode letters,
+   126→    marks (incl. Devanagari matras) and numbers. Replacing `\\W+` would
+   127→    strip Devanagari vowel signs (Unicode category Mc) — a real bug for Hindi.
+   128→    """
+   129→    if not isinstance(s, str):
+   130→        return ""
+   131→    s = unicodedata.normalize("NFKC", s)
+   132→    s = s.lower()
+   133→    out_chars = []
+   134→    for ch in s:
+   135→        cat = unicodedata.category(ch)
+   136→        if cat[0] in ("L", "M", "N"):  # letter, mark, number
+   137→            out_chars.append(ch)
+   138→        else:
+   139→            out_chars.append(" ")
+   140→    s = "".join(out_chars)
+   141→    s = re.sub(r"\s+", " ", s).strip()
+   142→    return s
+   143→
+   144→
+   145→def load_messages_csv(path: Path) -> pd.DataFrame:
+   146→    df = pd.read_csv(path)
+   147→    df["text"] = df["text"].astype(str).str.strip()
+   148→    df["label"] = df["label"].astype(int)
+   149→    df["_norm"] = df["text"].map(_normalize_text)
+   150→    df["_group"] = df["_norm"]
+   151→    # Group IDs by unique normalized text — duplicates share a group id
+   152→    unique = df["_group"].unique()
+   153→    group_id = {v: i for i, v in enumerate(unique)}
+   154→    df["_group_id"] = df["_group"].map(group_id)
+   155→    return df
+   156→
+   157→
+   158→# ---------------------------------------------------------------------------
+   159→# English SMS Spam — attempt public UCI download (no fabrication)
+   160→# ---------------------------------------------------------------------------
+   161→def attempt_download_english_sms() -> Tuple[Optional[pd.DataFrame], Dict[str, Any]]:
+   162→    """Attempt to download UCI SMS Spam Collection v1.
+   163→    Returns (df or None, info dict). NEVER fabricates data on failure."""
+   164→    ENGLISH_DIR.mkdir(parents=True, exist_ok=True)
+   165→    info = {
+   166→        "url": ENGLISH_DOWNLOAD_URL,
+   167→        "attempted_at": iso_now(),
+   168→        "success": False,
+   169→        "error": None,
+   170→    }
+   171→    try:
+   172→        print(f"[train] attempting English SMS Spam download: {ENGLISH_DOWNLOAD_URL}")
+   173→        req = urllib.request.Request(
+   174→            ENGLISH_DOWNLOAD_URL,
+   175→            headers={"User-Agent": "UPI-Fraud-Research-Prototype/1.0"},
+   176→        )
+   177→        with urllib.request.urlopen(req, timeout=20) as resp:
+   178→            data = resp.read()
+   179→        info["bytes_received"] = len(data)
+   180→        z = zipfile.ZipFile(io.BytesIO(data))
+   181→        # The archive contains a single file: SMSSpamCollection
+   182→        names = z.namelist()
+   183→        target = None
+   184→        for n in names:
+   185→            if n.lower().endswith("smsspamcollection") or n == "SMSSpamCollection":
+   186→                target = n
+   187→                break
+   188→        if target is None and len(names) == 1:
+   189→            target = names[0]
+   190→        if target is None:
+   191→            info["error"] = f"could not locate SMSSpamCollection in archive: {names}"
+   192→            return None, info
+   193→        with z.open(target) as f:
+   194→            raw = f.read().decode("latin-1")
+   195→        rows = []
+   196→        for line in raw.splitlines():
+   197→            line = line.strip()
+   198→            if not line:
+   199→                continue
+   200→            if line.startswith(("ham\t", "spam\t")):
+   201→                lab, txt = line.split("\t", 1)
+   202→                rows.append((lab, txt))
+   203→        if not rows:
+   204→            info["error"] = "no rows parsed from SMSSpamCollection"
+   205→            return None, info
+   206→        df = pd.DataFrame(rows, columns=["raw_label", "text"])
+   207→        df["label"] = (df["raw_label"] == "spam").astype(int)
+   208→        df["language"] = "English"
+   209→        df["category"] = df["raw_label"]
+   210→        df["source"] = "UCI_SMS_Spam_v1"
+   211→        df = df[["text", "language", "category", "label", "source"]]
+   212→        info["success"] = True
+   213→        info["rows"] = int(len(df))
+   214→        info["label_distribution"] = {
+   215→            str(k): int(v) for k, v in df["label"].value_counts().items()
+   216→        }
+   217→        df.to_csv(ENGLISH_DIR / "english_sms_spam.csv", index=False)
+   218→        print(f"[train] English SMS Spam downloaded: {len(df):,} rows")
+   219→        return df, info
+   220→    except urllib.error.URLError as e:
+   221→        info["error"] = f"URLError: {e}"
+   222→        print(f"[train] English download FAILED (URLError): {e}")
+   223→        return None, info
+   224→    except Exception as e:
+   225→        info["error"] = f"{type(e).__name__}: {e}"
+   226→        print(f"[train] English download FAILED: {e}")
+   227→        return None, info
+   228→
+   229→
+   230→# ---------------------------------------------------------------------------
+   231→# Transaction model training
+   232→# ---------------------------------------------------------------------------
+   233→def train_logreg_model(X: pd.DataFrame, y: pd.Series) -> Pipeline:
+   234→    """LogisticRegression with StandardScaler + class_weight='balanced'."""
+   235→    pipe = Pipeline([
+   236→        ("scaler", StandardScaler()),
+   237→        ("clf", LogisticRegression(
+   238→            class_weight="balanced", C=1.0, max_iter=1000,
+   239→            random_state=RANDOM_SEED, n_jobs=-1,
+   240→        )),
+   241→    ])
+   242→    pipe.fit(X, y)
+   243→    return pipe
+   244→
+   245→
+   246→def train_rf_model(X: pd.DataFrame, y: pd.Series) -> Pipeline:
+   247→    """RandomForestClassifier (no scaling needed for trees)."""
+   248→    pipe = Pipeline([
+   249→        ("clf", RandomForestClassifier(
+   250→            n_estimators=200, max_depth=12,
+   251→            class_weight="balanced_subsample",
+   252→            n_jobs=-1, random_state=RANDOM_SEED,
+   253→        )),
+   254→    ])
+   255→    pipe.fit(X, y)
+   256→    return pipe
+   257→
+   258→
+   259→def train_xgboost_model(X: pd.DataFrame, y: pd.Series) -> Pipeline:
+   260→    """XGBoostClassifier with scale_pos_weight = neg/pos."""
+   261→    y = y.astype(int)
+   262→    pos = int((y == 1).sum())
+   263→    neg = int((y == 0).sum())
+   264→    spw = max(neg / max(pos, 1), 1.0)
+   265→    pipe = Pipeline([
+   266→        ("clf", xgboost.XGBClassifier(
+   267→            n_estimators=200, max_depth=6, learning_rate=0.1,
+   268→            scale_pos_weight=spw, eval_metric="aucpr",
+   269→            random_state=RANDOM_SEED, n_jobs=-1,
+   270→            tree_method="hist",
+   271→            use_label_encoder=False,
+   272→        )),
+   273→    ])
+   274→    pipe.fit(X, y)
+   275→    return pipe
+   276→
+   277→
+   278→def build_transaction_pipeline(fitted_pipeline: Pipeline,
+   279→                                model_name: str) -> Pipeline:
+   280→    """Wrap a fitted pipeline into the saved artifact. The fitted pipeline
+   281→    already includes preprocessing + classifier, so we just return it."""
+   282→    return fitted_pipeline
+   283→
+   284→
+   285→def compute_classification_metrics(pipeline: Pipeline,
+   286→                                   X_test: pd.DataFrame,
+   287→                                   y_test: pd.Series) -> Dict[str, Any]:
+   288→    y_test = y_test.astype(int)
+   289→    proba = pipeline.predict_proba(X_test)[:, 1]
+   290→    pred = (proba >= 0.5).astype(int)
+   291→    metrics: Dict[str, Any] = {
+   292→        "precision": float(precision_score(y_test, pred, zero_division=0)),
+   293→        "recall": float(recall_score(y_test, pred, zero_division=0)),
+   294→        "f1": float(f1_score(y_test, pred, zero_division=0)),
+   295→        "roc_auc": float(roc_auc_score(y_test, proba)) if len(np.unique(y_test)) > 1 else 0.0,
+   296→        "pr_auc": float(average_precision_score(y_test, proba)) if len(np.unique(y_test)) > 1 else 0.0,
+   297→        "confusion_matrix": confusion_matrix(y_test, pred).tolist(),
+   298→        "threshold": 0.5,
+   299→    }
+   300→    return metrics
+   301→
+   302→
+   303→# ---------------------------------------------------------------------------
+   304→# NLP model training
+   305→# ---------------------------------------------------------------------------
+   306→def train_nlp_pipeline(texts: pd.Series, labels: pd.Series) -> Pipeline:
+   307→    """TF-IDF + LogisticRegression. The vectorizer and classifier are wrapped
+   308→    in a single sklearn Pipeline that accepts raw text strings."""
+   309→    pipe = Pipeline([
+   310→        ("tfidf", TfidfVectorizer(
+   311→            lowercase=True, ngram_range=(1, 2), max_features=5000,
+   312→            min_df=2, sublinear_tf=True, strip_accents="unicode",
+   313→        )),
+   314→        ("clf", LogisticRegression(
+   315→            class_weight="balanced", C=1.0, max_iter=1000,
+   316→            random_state=RANDOM_SEED, n_jobs=-1,
+   317→        )),
+   318→    ])
+   319→    pipe.fit(texts.astype(str), labels.astype(int))
+   320→    return pipe
+   321→
+   322→
+   323→def compute_classification_metrics_text(pipeline: Pipeline,
+   324→                                        X_text: pd.Series,
+   325→                                        y: pd.Series) -> Dict[str, Any]:
+   326→    y = y.astype(int)
+   327→    proba = pipeline.predict_proba(X_text.astype(str))[:, 1]
+   328→    pred = (proba >= 0.5).astype(int)
+   329→    metrics: Dict[str, Any] = {
+   330→        "precision": float(precision_score(y, pred, zero_division=0)),
+   331→        "recall": float(recall_score(y, pred, zero_division=0)),
+   332→        "f1": float(f1_score(y, pred, zero_division=0)),
+   333→        "roc_auc": float(roc_auc_score(y, proba)) if len(np.unique(y)) > 1 else 0.0,
+   334→        "pr_auc": float(average_precision_score(y, proba)) if len(np.unique(y)) > 1 else 0.0,
+   335→        "confusion_matrix": confusion_matrix(y, pred).tolist(),
+   336→        "threshold": 0.5,
+   337→    }
+   338→    return metrics
+   339→
+   340→
+   341→def group_aware_split(df: pd.DataFrame,
+   342→                       train_frac: float = 0.70,
+   343→                       val_frac: float = 0.15,
+   344→                       seed: int = RANDOM_SEED) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+   345→    """70/15/15 group-aware split. All rows of a duplicate group go to the
+   346→    same split (prevents exact & near-duplicate leakage)."""
+   347→    groups = df["_group_id"].values
+   348→    unique_groups = np.unique(groups)
+   349→    rng = np.random.RandomState(seed)
+   350→    rng.shuffle(unique_groups)
+   351→    n = len(unique_groups)
+   352→    n_train = int(n * train_frac)
+   353→    n_val = int(n * val_frac)
+   354→    train_g = set(unique_groups[:n_train])
+   355→    val_g = set(unique_groups[n_train:n_train + n_val])
+   356→    test_g = set(unique_groups[n_train + n_val:])
+   357→    train_df = df[df["_group_id"].isin(train_g)].copy()
+   358→    val_df = df[df["_group_id"].isin(val_g)].copy()
+   359→    test_df = df[df["_group_id"].isin(test_g)].copy()
+   360→    return train_df, val_df, test_df
+   361→
+   362→
+   363→def load_nlp_data_for_language(lang_code: str) -> Tuple[
+   364→        Optional[pd.DataFrame], Optional[pd.DataFrame], Optional[pd.DataFrame], Optional[str]]:
+   365→    """Return (train_df, test_df, val_df, info_or_None) for a given language.
+   366→    Splits are group-aware (duplicate-group aware)."""
+   367→    lang_code = (lang_code or "").lower()
+   368→    sources: List[Path] = []
+   369→    if lang_code == "hi":
+   370→        sources = [MESSAGES_DIR / "hindi_messages.csv"]
+   371→    elif lang_code == "hinglish":
+   372→        sources = [MESSAGES_DIR / "hinglish_messages.csv"]
+   373→    elif lang_code == "en":
+   374→        p = ENGLISH_DIR / "english_sms_spam.csv"
+   375→        if p.exists():
+   376→            sources = [p]
+   377→        else:
+   378→            return None, None, None, "English dataset not available (download failed)"
+   379→    elif lang_code == "combined":
+   380→        sources = [
+   381→            MESSAGES_DIR / "hindi_messages.csv",
+   382→            MESSAGES_DIR / "hinglish_messages.csv",
+   383→        ]
+   384→        p = ENGLISH_DIR / "english_sms_spam.csv"
+   385→        if p.exists():
+   386→            sources.append(p)
+   387→    else:
+   388→        return None, None, None, f"unknown language: {lang_code}"
+   389→
+   390→    frames = []
+   391→    for p in sources:
+   392→        if not p.exists():
+   393→            continue
+   394→        df = load_messages_csv(p)
+   395→        frames.append(df)
+   396→    if not frames:
+   397→        return None, None, None, f"no source files for {lang_code}"
+   398→    full = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
+   399→    # Rebuild group ids across the combined frame
+   400→    unique = full["_norm"].unique()
+   401→    gid = {v: i for i, v in enumerate(unique)}
+   402→    full["_group_id"] = full["_norm"].map(gid)
+   403→    # Group-aware 70/15/15 split
+   404→    train_df, val_df, test_df = group_aware_split(full)
+   405→    return train_df, test_df, val_df, None
+   406→
+   407→
+   408→# ---------------------------------------------------------------------------
+   409→# Drift reference
+   410→# ---------------------------------------------------------------------------
+   411→def build_and_save_drift_reference(train_df: pd.DataFrame) -> Dict[str, Any]:
+   412→    ref = build_reference_distribution(train_df, TX_FEATURES, bins=10)
+   413→    out = {
+   414→        "generated_at": iso_now(),
+   415→        "source": "PaySim training split",
+   416→        "dataset_version": DATASET_VERSION,
+   417→        "features": TX_FEATURES,
+   418→        "bins_default": 10,
+   419→        **ref,
+   420→    }
+   421→    (METADATA_DIR / "drift_reference.json").write_text(json.dumps(out, indent=2))
+   422→    print(f"[train] saved drift_reference.json ({len(ref)} features)")
+   423→
+   424→    # Also save a small SHAP background sample (100 legitimate rows) so the
+   425→    # FastAPI service does not need to load the full 613k-row train_df for
+   426→    # every SHAP request. The KernelExplainer fallback uses this; the
+   427→    # TreeExplainer used for XGBoost does not need a background.
+   428→    bg = train_df[train_df["isFraud"] == 0][TX_FEATURES].sample(
+   429→        n=min(100, len(train_df[train_df["isFraud"] == 0])),
+   430→        random_state=RANDOM_SEED,
+   431→    )
+   432→    joblib.dump(bg, MODELS_DIR / "shap_background.joblib")
+   433→    print(f"[train] saved shap_background.joblib ({len(bg)} rows)")
+   434→    return out
+   435→
+   436→
+   437→# ---------------------------------------------------------------------------
+   438→# Main training orchestration
+   439→# ---------------------------------------------------------------------------
+   440→def train_transaction_models() -> Dict[str, Any]:
+   441→    """Train LR / RF / XGBoost on PaySim. XGBoost is the active model."""
+   442→    print("[train] === Transaction models ===")
+   443→    train_df = load_paysim_split("train")
+   444→    test_df = load_paysim_split("test")
+   445→    X_full = train_df[TX_FEATURES]
+   446→    y_full = train_df["isFraud"].astype(int)
+   447→    X_test = test_df[TX_FEATURES]
+   448→    y_test = test_df["isFraud"].astype(int)
+   449→
+   450→    pos = int((y_full == 1).sum())
+   451→    neg = int((y_full == 0).sum())
+   452→    spw = max(neg / max(pos, 1), 1.0)
+   453→    print(f"[train] train rows={len(train_df):,} fraud={pos:,} legit={neg:,} "
+   454→          f"scale_pos_weight={spw:.2f}")
+   455→    print(f"[train] test rows={len(test_df):,} fraud={int((y_test==1).sum()):,}")
+   456→
+   457→    # ---- LR & RF on a 100k subsample for efficiency (document this) ----
+   458→    rng = np.random.RandomState(RANDOM_SEED)
+   459→    # Stratified subsample: keep all fraud + 100k legit
+   460→    legit_idx = np.where(y_full == 0)[0]
+   461→    fraud_idx = np.where(y_full == 1)[0]
+   462→    chosen_legit = rng.choice(legit_idx, size=min(100_000, len(legit_idx)),
+   463→                              replace=False)
+   464→    sub_idx = np.concatenate([chosen_legit, fraud_idx])
+   465→    rng.shuffle(sub_idx)
+   466→    X_sub = X_full.iloc[sub_idx].reset_index(drop=True)
+   467→    y_sub = y_full.iloc[sub_idx].reset_index(drop=True)
+   468→    print(f"[train] LR/RF subsample: {len(X_sub):,} rows "
+   469→          f"({int((y_sub==1).sum()):,} fraud)")
+   470→
+   471→    models_meta: Dict[str, Any] = {}
+   472→
+   473→    # --- Logistic Regression ---
+   474→    print("[train] training LogisticRegression (subsampled)...")
+   475→    t0 = time.time()
+   476→    lr_pipe = train_logreg_model(X_sub, y_sub)
+   477→    lr_metrics = compute_classification_metrics(lr_pipe, X_test, y_test)
+   478→    joblib.dump(lr_pipe, MODELS_DIR / "transaction_lr.joblib")
+   479→    print(f"[train] LR done in {time.time()-t0:.1f}s "
+   480→          f"F1={lr_metrics['f1']:.4f} recall={lr_metrics['recall']:.4f} "
+   481→          f"prec={lr_metrics['precision']:.4f} roc_auc={lr_metrics['roc_auc']:.4f} "
+   482→          f"pr_auc={lr_metrics['pr_auc']:.4f}")
+   483→    models_meta["transaction_lr"] = {
+   484→        "name": "transaction_lr",
+   485→        "type": "logistic_regression",
+   486→        "version": "1.0.0",
+   487→        "active": False,
+   488→        "dataset_version": DATASET_VERSION,
+   489→        "training_timestamp": iso_now(),
+   490→        "features": TX_FEATURES,
+   491→        "hyperparameters": {
+   492→            "model": "LogisticRegression",
+   493→            "scaler": "StandardScaler",
+   494→            "class_weight": "balanced",
+   495→            "C": 1.0, "max_iter": 1000,
+   496→            "random_state": RANDOM_SEED,
+   497→            "subsample_legit_rows": 100_000,
+   498→            "subsample_keep_all_fraud": True,
+   499→        },
+   500→        "metrics": lr_metrics,
+   501→        "artifact": "models/transaction_lr.joblib",
+   502→    }
+   503→
+   504→    # --- Random Forest ---
+   505→    print("[train] training RandomForest (subsampled)...")
+   506→    t0 = time.time()
+   507→    rf_pipe = train_rf_model(X_sub, y_sub)
+   508→    rf_metrics = compute_classification_metrics(rf_pipe, X_test, y_test)
+   509→    joblib.dump(rf_pipe, MODELS_DIR / "transaction_rf.joblib")
+   510→    print(f"[train] RF done in {time.time()-t0:.1f}s "
+   511→          f"F1={rf_metrics['f1']:.4f} recall={rf_metrics['recall']:.4f} "
+   512→          f"prec={rf_metrics['precision']:.4f} roc_auc={rf_metrics['roc_auc']:.4f} "
+   513→          f"pr_auc={rf_metrics['pr_auc']:.4f}")
+   514→    models_meta["transaction_rf"] = {
+   515→        "name": "transaction_rf",
+   516→        "type": "random_forest",
+   517→        "version": "1.0.0",
+   518→        "active": False,
+   519→        "dataset_version": DATASET_VERSION,
+   520→        "training_timestamp": iso_now(),
+   521→        "features": TX_FEATURES,
+   522→        "hyperparameters": {
+   523→            "model": "RandomForestClassifier",
+   524→            "n_estimators": 200, "max_depth": 12,
+   525→            "class_weight": "balanced_subsample",
+   526→            "n_jobs": -1, "random_state": RANDOM_SEED,
+   527→            "subsample_legit_rows": 100_000,
+   528→            "subsample_keep_all_fraud": True,
+   529→        },
+   530→        "metrics": rf_metrics,
+   531→        "artifact": "models/transaction_rf.joblib",
+   532→    }
+   533→
+   534→    # --- XGBoost (PRIMARY / ACTIVE) on full training set ---
+   535→    print("[train] training XGBoost (full training set)...")
+   536→    t0 = time.time()
+   537→    xgb_pipe = train_xgboost_model(X_full, y_full)
+   538→    xgb_metrics = compute_classification_metrics(xgb_pipe, X_test, y_test)
+   539→    joblib.dump(xgb_pipe, MODELS_DIR / "transaction_xgboost.joblib")
+   540→    print(f"[train] XGBoost done in {time.time()-t0:.1f}s "
+   541→          f"F1={xgb_metrics['f1']:.4f} recall={xgb_metrics['recall']:.4f} "
+   542→          f"prec={xgb_metrics['precision']:.4f} roc_auc={xgb_metrics['roc_auc']:.4f} "
+   543→          f"pr_auc={xgb_metrics['pr_auc']:.4f}")
+   544→    models_meta["transaction_xgboost"] = {
+   545→        "name": "transaction_xgboost",
+   546→        "type": "xgboost",
+   547→        "version": TRANSACTION_VERSION,
+   548→        "active": True,
+   549→        "dataset_version": DATASET_VERSION,
+   550→        "training_timestamp": iso_now(),
+   551→        "features": TX_FEATURES,
+   552→        "hyperparameters": {
+   553→            "model": "XGBClassifier",
+   554→            "n_estimators": 200, "max_depth": 6, "learning_rate": 0.1,
+   555→            "scale_pos_weight": round(spw, 4),
+   556→            "eval_metric": "aucpr",
+   557→            "tree_method": "hist",
+   558→            "random_state": RANDOM_SEED,
+   559→            "subsample_legit_rows": None,
+   560→            "subsample_keep_all_fraud": True,
+   561→        },
+   562→        "metrics": xgb_metrics,
+   563→        "artifact": "models/transaction_xgboost.joblib",
+   564→    }
+   565→
+   566→    meta = {
+   567→        "generated_at": iso_now(),
+   568→        "service": "ml-service",
+   569→        "model_family": "transaction",
+   570→        "dataset_version": DATASET_VERSION,
+   571→        "random_seed": RANDOM_SEED,
+   572→        "active_model": "transaction_xgboost",
+   573→        "active_version": TRANSACTION_VERSION,
+   574→        "models": models_meta,
+   575→        "last_updated": iso_now(),
+   576→    }
+   577→    (METADATA_DIR / "transaction_models.json").write_text(json.dumps(meta, indent=2))
+   578→    print(f"[train] saved metadata/transaction_models.json")
+   579→    return meta
+   580→
+   581→
+   582→def train_nlp_models(english_df: Optional[pd.DataFrame]) -> Dict[str, Any]:
+   583→    """Train per-language + combined NLP models."""
+   584→    print("[train] === NLP models ===")
+   585→    out_models: Dict[str, Any] = {}
+   586→
+   587→    langs = [
+   588→        ("nlp_hi", "hi"),
+   589→        ("nlp_hinglish", "hinglish"),
+   590→        ("nlp_en", "en"),
+   591→        ("nlp_combined", "combined"),
+   592→    ]
+   593→    english_status = "not_trained"  # default
+   594→    for model_name, lang_code in langs:
+   595→        print(f"[train] --- {model_name} ({lang_code}) ---")
+   596→        if lang_code == "en" and english_df is None:
+   597→            print(f"[train] English data not available -> marking not_trained")
+   598→            out_models[model_name] = {
+   599→                "name": model_name,
+   600→                "type": "tfidf_lr",
+   601→                "language": "English",
+   602→                "version": NLP_VERSION,
+   603→                "active": False,
+   604→                "trained": False,
+   605→                "status": "not_trained",
+   606→                "dataset_version": "UCI_SMS_Spam_v1",
+   607→                "training_timestamp": iso_now(),
+   608→                "error": "English SMS Spam dataset download failed (sandbox blocked).",
+   609→                "metrics": {},
+   610→                "artifact": None,
+   611→            }
+   612→            continue
+   613→
+   614→        train_df, test_df, val_df, info = load_nlp_data_for_language(lang_code)
+   615→        if train_df is None:
+   616→            print(f"[train] {model_name} data unavailable: {info}")
+   617→            out_models[model_name] = {
+   618→                "name": model_name,
+   619→                "type": "tfidf_lr",
+   620→                "language": lang_code,
+   621→                "version": NLP_VERSION,
+   622→                "active": False,
+   623→                "trained": False,
+   624→                "status": "not_trained",
+   625→                "error": info,
+   626→                "training_timestamp": iso_now(),
+   627→                "metrics": {},
+   628→                "artifact": None,
+   629→            }
+   630→            continue
+   631→
+   632→        print(f"[train] rows: train={len(train_df):,} val={len(val_df):,} "
+   633→              f"test={len(test_df):,}")
+   634→        print(f"[train] label dist (train): "
+   635→              f"{dict(train_df['label'].value_counts().to_dict())}")
+   636→        print(f"[train] unique duplicate groups: {train_df['_group_id'].nunique()}")
+   637→
+   638→        pipe = train_nlp_pipeline(train_df["text"], train_df["label"])
+   639→        metrics = compute_classification_metrics_text(pipe, test_df["text"], test_df["label"])
+   640→        print(f"[train] {model_name} F1={metrics['f1']:.4f} "
+   641→              f"recall={metrics['recall']:.4f} prec={metrics['precision']:.4f} "
+   642→              f"roc_auc={metrics['roc_auc']:.4f}")
+   643→
+   644→        artifact_stem = {
+   645→            "nlp_hi": "nlp_tfidf_lr_hi",
+   646→            "nlp_hinglish": "nlp_tfidf_lr_hinglish",
+   647→            "nlp_en": "nlp_tfidf_lr_en",
+   648→            "nlp_combined": "nlp_tfidf_lr_combined",
+   649→        }[model_name]
+   650→        artifact_path = MODELS_DIR / f"{artifact_stem}.joblib"
+   651→        joblib.dump(pipe, artifact_path)
+   652→        out_models[model_name] = {
+   653→            "name": model_name,
+   654→            "type": "tfidf_lr",
+   655→            "language": lang_code,
+   656→            "version": NLP_VERSION,
+   657→            "active": True,
+   658→            "trained": True,
+   659→            "status": "trained",
+   660→            "dataset_version": DATASET_VERSION if lang_code != "en" else "UCI_SMS_Spam_v1",
+   661→            "training_timestamp": iso_now(),
+   662→            "features": "tfidf(1,2) + logistic_regression",
+   663→            "hyperparameters": {
+   664→                "vectorizer": "TfidfVectorizer",
+   665→                "lowercase": True, "ngram_range": [1, 2],
+   666→                "max_features": 5000, "min_df": 2,
+   667→                "sublinear_tf": True, "strip_accents": "unicode",
+   668→                "classifier": "LogisticRegression",
+   669→                "class_weight": "balanced", "C": 1.0, "max_iter": 1000,
+   670→                "random_state": RANDOM_SEED,
+   671→                "split": "group-aware 70/15/15 (duplicate-group aware)",
+   672→            },
+   673→            "metrics": metrics,
+   674→            "rows": {
+   675→                "train": int(len(train_df)),
+   676→                "val": int(len(val_df)),
+   677→                "test": int(len(test_df)),
+   678→            },
+   679→            "artifact": f"models/{artifact_path.name}",
+   680→        }
+   681→        if lang_code == "en":
+   682→            english_status = "trained"
+   683→
+   684→    meta = {
+   685→        "generated_at": iso_now(),
+   686→        "service": "ml-service",
+   687→        "model_family": "nlp",
+   688→        "random_seed": RANDOM_SEED,
+   689→        "english_status": english_status,
+   690→        "models": out_models,
+   691→        "last_updated": iso_now(),
+   692→    }
+   693→    (METADATA_DIR / "nlp_models.json").write_text(json.dumps(meta, indent=2))
+   694→    print(f"[train] saved metadata/nlp_models.json")
+   695→    return meta
+   696→
+   697→
+   698→# ---------------------------------------------------------------------------
+   699→# main()
+   700→# ---------------------------------------------------------------------------
+   701→def main() -> None:
+   702→    t_start = time.time()
+   703→    print("=" * 70)
+   704→    print("UPI Fraud Detection ML service — training pipeline")
+   705→    print(f"started at {iso_now()}")
+   706→    print("=" * 70)
+   707→
+   708→    set_seeds(RANDOM_SEED)
+   709→    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+   710→    METADATA_DIR.mkdir(parents=True, exist_ok=True)
+   711→
+   712→    # 1. English SMS Spam download attempt
+   713→    english_df, en_info = attempt_download_english_sms()
+   714→    print(f"[train] English download success: {en_info.get('success')}")
+   715→
+   716→    # 2. Transaction models
+   717→    tx_meta = train_transaction_models()
+   718→
+   719→    # 3. NLP models
+   720→    nlp_meta = train_nlp_models(english_df)
+   721→
+   722→    # 4. Drift reference distribution from PaySim training data
+   723→    train_df = load_paysim_split("train")
+   724→    drift_ref = build_and_save_drift_reference(train_df)
+   725→
+   726→    elapsed = time.time() - t_start
+   727→    print("=" * 70)
+   728→    print("TRAINING SUMMARY")
+   729→    print("=" * 70)
+   730→    print(f"Random seed: {RANDOM_SEED}")
+   731→    print(f"Transaction models:")
+   732→    for name, info in tx_meta["models"].items():
+   733→        m = info["metrics"]
+   734→        print(f"  {name:25s} F1={m['f1']:.4f} recall={m['recall']:.4f} "
+   735→              f"prec={m['precision']:.4f} roc_auc={m['roc_auc']:.4f} "
+   736→              f"pr_auc={m['pr_auc']:.4f}  active={info['active']}")
+   737→    print(f"NLP models:")
+   738→    for name, info in nlp_meta["models"].items():
+   739→        if not info.get("trained"):
+   740→            print(f"  {name:25s} NOT TRAINED ({info.get('error', '')})")
+   741→            continue
+   742→        m = info["metrics"]
+   743→        print(f"  {name:25s} F1={m['f1']:.4f} recall={m['recall']:.4f} "
+   744→              f"prec={m['precision']:.4f} roc_auc={m['roc_auc']:.4f}")
+   745→    print(f"Drift reference features: {len(drift_ref) - 4}")  # minus meta keys
+   746→    print(f"Total training time: {elapsed:.1f}s")
+   747→    print(f"Active transaction model: {tx_meta['active_model']} "
+   748→          f"v{tx_meta['active_version']}")
+   749→    print("=" * 70)
+   750→
+   751→
+   752→if __name__ == "__main__":
+   753→    main()
+   754→

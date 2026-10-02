@@ -1,0 +1,1011 @@
+     1→Adaptive, Explainable and Multilingual AI System for Detecting UPI Fraud
+     2→and Financial Scams
+     3→
+     4→Complete implementation specification for Z.ai
+     5→
+     6→MASTER DEVELOPMENT INSTRUCTIONS FOR Z.AI
+     7→
+     8→Purpose: Give Z.ai one complete, strict specification for building the
+     9→full academic project — ML/NLP + XAI + concept drift + adaptive
+    10→learning + PostgreSQL + FastAPI + React — rather than a frontend
+    11→prototype.
+    12→
+    13→Source basis: Project synopsis and project presentation supplied by the
+    14→user. The synopsis is the primary functional specification.
+    15→
+    16→1. PRIMARY SOURCE OF TRUTH
+    17→
+    18→Study the supplied project synopsis carefully before writing
+    19→implementation code. Treat it as the primary functional specification.
+    20→
+    21→-   Detect suspicious/fraudulent financial transactions.
+    22→
+    23→-   Detect financial scam/phishing messages.
+    24→
+    25→-   Support English, Hindi and Hinglish.
+    26→
+    27→-   Generate a standardized fraud/scam risk score.
+    28→
+    29→-   Provide human-readable explanations for predictions.
+    30→
+    31→-   Detect concept drift.
+    32→
+    33→-   Support adaptive model updating/retraining after significant drift.
+    34→
+    35→-   Provide a web-based dashboard.
+    36→
+    37→-   Store predictions, analyses, risk scores and monitoring information.
+    38→
+    39→-   Compare conventional/static models with adaptive approaches where
+    40→    feasible.
+    41→
+    42→-   Provide trained models, preprocessing pipelines, evaluation results
+    43→    and documentation.
+    44→
+    45→-   Treat the system as a research prototype/decision-support tool, not
+    46→    a production banking security system.
+    47→
+    48→2. CORE ENGINEERING RULE
+    49→
+    50→This is an AI/ML project first and a web application second.
+    51→
+    52→-   Do NOT build only a beautiful React UI.
+    53→
+    54→-   Every major UI feature must connect to an actual backend/API
+    55→    operation.
+    56→
+    57→-   Every backend prediction endpoint must connect to an actual trained
+    58→    model.
+    59→
+    60→-   Every model must have a reproducible preprocessing pipeline.
+    61→
+    62→-   Every displayed metric must come from actual evaluated/stored data.
+    63→
+    64→-   Every explanation must come from an actual XAI calculation.
+    65→
+    66→-   Every drift alert must come from an actual drift calculation.
+    67→
+    68→-   No fake statistics, fake predictions, fake API responses or
+    69→    hardcoded dashboard numbers.
+    70→
+    71→-   If a feature is difficult, implement a smaller but REAL working
+    72→    version instead of a dummy button.
+    73→
+    74→-   Never claim a feature is implemented unless the backend actually
+    75→    performs it.
+    76→
+    77→3. REQUIRED TECHNOLOGY STACK
+    78→
+    79→-   Languages: Python, SQL, JavaScript/TypeScript
+    80→
+    81→-   ML/NLP: Scikit-learn, XGBoost, PyTorch, Hugging Face Transformers
+    82→
+    83→-   Explainable AI: SHAP, LIME
+    84→
+    85→-   Backend: FastAPI
+    86→
+    87→-   Frontend: React + TypeScript
+    88→
+    89→-   Database: PostgreSQL
+    90→
+    91→-   Visualization: Plotly
+    92→
+    93→-   Development: Jupyter Notebook, VS Code, Git/GitHub
+    94→
+    95→-   Supporting libraries may include pandas, numpy, scipy, joblib,
+    96→    pydantic, SQLAlchemy, Alembic, imbalanced-learn where justified,
+    97→    httpx, pytest, uvicorn and python-dotenv.
+    98→
+    99→Do not replace the required technologies with unrelated frameworks. Do
+   100→not use Firebase/MongoDB as the primary database, Django, Next.js
+   101→instead of React, or Node.js instead of FastAPI.
+   102→
+   103→4. DATASET POLICY
+   104→
+   105→Do NOT invent a fake 'real UPI dataset'. Use the available
+   106→public/project datasets and clearly disclose their provenance.
+   107→
+   108→4.1 Transaction Fraud — PaySim
+   109→
+   110→-   Use the provided PaySim dataset:
+   111→    PS_20174392719_1491204439457_log.csv.
+   112→
+   113→-   PaySim is a public mobile-money transaction simulator dataset and
+   114→    must NOT be described as real UPI banking data.
+   115→
+   116→-   Preserve the raw dataset; never overwrite it.
+   117→
+   118→-   Important fields: step, type, amount, nameOrig, oldbalanceOrg,
+   119→    newbalanceOrig, nameDest, oldbalanceDest, newbalanceDest, isFraud,
+   120→    isFlaggedFraud.
+   121→
+   122→-   Target: isFraud.
+   123→
+   124→4.2 English Scam Messages — UCI SMS Spam Collection
+   125→
+   126→-   Use the provided/public UCI SMS Spam Collection.
+   127→
+   128→-   Do not generate fake English messages to inflate the dataset.
+   129→
+   130→-   Normalize to: text, language, category, label, source.
+   131→
+   132→-   language = English.
+   133→
+   134→4.3 Hindi
+   135→
+   136→-   Use the provided Hindi CSV.
+   137→
+   138→-   Columns: id, text, language, category, label, source.
+   139→
+   140→-   Retain source/provenance metadata.
+   141→
+   142→-   If the source is marked synthetic, do not describe it as
+   143→    independently collected real-world data.
+   144→
+   145→-   Inspect duplicates before training and prevent duplicate leakage.
+   146→
+   147→4.4 Hinglish
+   148→
+   149→-   Use the provided Hinglish CSV.
+   150→
+   151→-   Columns: id, text, language, category, label, source.
+   152→
+   153→-   Retain source/provenance metadata.
+   154→
+   155→-   If the source is marked synthetic, do not describe it as
+   156→    independently collected real-world data.
+   157→
+   158→-   Inspect duplicate/template leakage before splitting.
+   159→
+   160→5. DATASET PREPARATION RULES
+   161→
+   162→-   Preserve raw data unchanged.
+   163→
+   164→-   Create processed datasets separately.
+   165→
+   166→-   Audit row counts, data types, missing values, duplicates, label
+   167→    distribution, language/category distribution and temporal patterns.
+   168→
+   169→-   For Hindi/Hinglish, detect exact and normalized duplicates and
+   170→    prevent template leakage across train/test.
+   171→
+   172→-   Never oversample before train/test splitting.
+   173→
+   174→-   If class balancing is needed, use class weighting or documented
+   175→    resampling only on training data.
+   176→
+   177→-   Do not fabricate transaction records merely to increase dataset
+   178→    size.
+   179→
+   180→-   Do not fabricate evaluation metrics.
+   181→
+   182→6. HIGH-LEVEL SYSTEM ARCHITECTURE
+   183→
+   184→  React + TypeScript Frontend
+   185→  |
+   186→  | REST API
+   187→  v
+   188→  FastAPI Backend
+   189→  |
+   190→  +-------+--------+----------------+
+   191→  | | |
+   192→  Transaction ML Multilingual NLP XAI Engine
+   193→  | | SHAP/LIME
+   194→  +-------+--------+----------------+
+   195→  |
+   196→  Unified Risk Engine
+   197→  |
+   198→  Drift / Adaptive Engine
+   199→  |
+   200→  PostgreSQL Database
+   201→
+   202→7. REQUIRED FOLDER STRUCTURE
+   203→
+   204→  upi-fraud-detection/
+   205→  ├── README.md
+   206→  ├── .gitignore
+   207→  ├── .env.example
+   208→  ├── docker-compose.yml
+   209→  ├── requirements.txt
+   210→  ├── backend/
+   211→  │ ├── app/
+   212→  │ │ ├── main.py
+   213→  │ │ ├── api/routes/
+   214→  │ │ │ ├── health.py
+   215→  │ │ │ ├── transactions.py
+   216→  │ │ │ ├── messages.py
+   217→  │ │ │ ├── risk.py
+   218→  │ │ │ ├── explanations.py
+   219→  │ │ │ ├── drift.py
+   220→  │ │ │ └── dashboard.py
+   221→  │ │ ├── core/
+   222→  │ │ │ ├── config.py
+   223→  │ │ │ ├── logging.py
+   224→  │ │ │ └── security.py
+   225→  │ │ ├── db/
+   226→  │ │ │ ├── database.py
+   227→  │ │ │ ├── models.py
+   228→  │ │ │ └── repositories/
+   229→  │ │ ├── schemas/
+   230→  │ │ ├── services/
+   231→  │ │ └── utils/
+   232→  │ └── tests/
+   233→  ├── ml/
+   234→  │ ├── notebooks/
+   235→  │ │ ├── 01_dataset_audit.ipynb
+   236→  │ │ ├── 02_transaction_preprocessing.ipynb
+   237→  │ │ ├── 03_transaction_models.ipynb
+   238→  │ │ ├── 04_message_preprocessing.ipynb
+   239→  │ │ ├── 05_multilingual_models.ipynb
+   240→  │ │ ├── 06_xai_analysis.ipynb
+   241→  │ │ └── 07_concept_drift.ipynb
+   242→  │ ├── src/
+   243→  │ │ ├── transaction/
+   244→  │ │ ├── nlp/
+   245→  │ │ ├── xai/
+   246→  │ │ ├── drift/
+   247→  │ │ └── risk/
+   248→  │ └── configs/
+   249→  ├── data/
+   250→  │ ├── raw/
+   251→  │ │ ├── paysim/
+   252→  │ │ └── messages/
+   253→  │ │ ├── english/
+   254→  │ │ ├── hindi/
+   255→  │ │ └── hinglish/
+   256→  │ ├── processed/
+   257→  │ └── splits/
+   258→  ├── models/
+   259→  │ ├── transaction/
+   260→  │ ├── nlp/
+   261→  │ └── metadata/
+   262→  ├── frontend/
+   263→  │ ├── src/
+   264→  │ │ ├── components/
+   265→  │ │ ├── pages/
+   266→  │ │ ├── layouts/
+   267→  │ │ ├── services/
+   268→  │ │ ├── hooks/
+   269→  │ │ ├── types/
+   270→  │ │ ├── utils/
+   271→  │ │ └── charts/
+   272→  │ ├── public/
+   273→  │ ├── package.json
+   274→  │ └── tsconfig.json
+   275→  ├── database/
+   276→  │ ├── migrations/
+   277→  │ ├── schema.sql
+   278→  │ └── seed.py
+   279→  ├── docs/
+   280→  │ ├── architecture.md
+   281→  │ ├── dataset.md
+   282→  │ ├── ml.md
+   283→  │ ├── api.md
+   284→  │ ├── xai.md
+   285→  │ ├── drift.md
+   286→  │ └── testing.md
+   287→  └── scripts/
+   288→  ├── setup.py
+   289→  ├── train_all.py
+   290→  ├── evaluate_all.py
+   291→  └── run_pipeline.py
+   292→
+   293→8. STRICT DEVELOPMENT ORDER
+   294→
+   295→PHASE 0 — REQUIREMENTS AUDIT
+   296→
+   297→-   Read the synopsis.
+   298→
+   299→-   Create a requirements checklist mapping every requirement to module,
+   300→    file, API, database table, UI component and test.
+   301→
+   302→-   Show the checklist before implementation.
+   303→
+   304→PHASE 1 — DATASET AUDIT
+   305→
+   306→-   Audit transaction and message datasets.
+   307→
+   308→-   Calculate row counts, columns, types, missing values, duplicates,
+   309→    label distributions, category/language distributions, amount
+   310→    statistics and temporal patterns.
+   311→
+   312→-   Generate data_audit_report.json and Markdown documentation.
+   313→
+   314→-   Never alter raw files.
+   315→
+   316→PHASE 2 — TRANSACTION PREPROCESSING
+   317→
+   318→-   Target: isFraud.
+   319→
+   320→-   Initial features: step, type, amount, oldbalanceOrg, newbalanceOrig,
+   321→    oldbalanceDest, newbalanceDest.
+   322→
+   323→-   Do not directly use nameOrig/nameDest unless a clearly justified
+   324→    non-leaky derived behavioural feature is created.
+   325→
+   326→-   Investigate balance-change, amount/balance ratio, transaction-type
+   327→    and temporal/behavioural features.
+   328→
+   329→-   Use chronological/temporal evaluation where appropriate because
+   330→    concept drift is a core requirement.
+   331→
+   332→-   Document the exact split strategy.
+   333→
+   334→PHASE 3 — TRANSACTION MODELS
+   335→
+   336→-   Train Logistic Regression, Random Forest and XGBoost.
+   337→
+   338→-   Handle extreme class imbalance appropriately.
+   339→
+   340→-   Evaluate Precision, Recall, F1, ROC-AUC, confusion matrix and PR-AUC
+   341→    where appropriate.
+   342→
+   343→-   Save trained model, preprocessing pipeline, feature metadata,
+   344→    metrics and model version.
+   345→
+   346→-   Do not select a model by hardcoded preference.
+   347→
+   348→PHASE 4 — MULTILINGUAL MESSAGE PIPELINE
+   349→
+   350→-   Unify English, Hindi and Hinglish into text, language, category,
+   351→    label, source.
+   352→
+   353→-   Perform Unicode normalization, whitespace normalization, safe
+   354→    cleaning, duplicate detection and label validation.
+   355→
+   356→-   Do not destroy meaningful Hindi/Hinglish signals such as URLs,
+   357→    numbers, currency symbols, OTP-like patterns or emojis without
+   358→    justification.
+   359→
+   360→PHASE 5 — NLP BASELINE
+   361→
+   362→-   Build TF-IDF + Scikit-learn classifier.
+   363→
+   364→-   Evaluate English, Hindi, Hinglish and combined multilingual data.
+   365→
+   366→-   Report Precision, Recall, F1 and ROC-AUC where meaningful.
+   367→
+   368→-   Prevent duplicate/template leakage.
+   369→
+   370→PHASE 6 — MULTILINGUAL TRANSFORMER
+   371→
+   372→-   Use PyTorch + Hugging Face Transformers.
+   373→
+   374→-   Select a multilingual model supporting English/Hindi and reasonably
+   375→    handling Hinglish.
+   376→
+   377→-   Document model choice and computational requirements.
+   378→
+   379→-   Fine-tune/evaluate and save tokenizer, model, configuration, metrics
+   380→    and version.
+   381→
+   382→-   Provide CPU fallback if GPU is unavailable.
+   383→
+   384→PHASE 7 — UNIFIED RISK ENGINE
+   385→
+   386→-   Convert transaction and message probabilities into a standardized
+   387→    0–100 risk score.
+   388→
+   389→-   Risk levels: LOW, MEDIUM, HIGH, CRITICAL.
+   390→
+   391→-   Use a documented, configurable fusion strategy.
+   392→
+   393→-   Do not imply that public datasets contain direct transaction-message
+   394→    relationships when they do not.
+   395→
+   396→PHASE 8 — EXPLAINABLE AI
+   397→
+   398→-   Implement real SHAP and/or LIME.
+   399→
+   400→-   Transaction explanations: important features and their contribution
+   401→    to the model prediction.
+   402→
+   403→-   Message explanations: important words/tokens/linguistic signals and
+   404→    contribution.
+   405→
+   406→-   Translate technical feature names into human-readable labels.
+   407→
+   408→-   Do not describe model explanations as causal explanations.
+   409→
+   410→PHASE 9 — CONCEPT DRIFT
+   411→
+   412→-   Use temporal monitoring.
+   413→
+   414→-   Implement Population Stability Index (PSI) as the primary documented
+   415→    drift technique.
+   416→
+   417→-   Create reference distribution, current distribution, PSI
+   418→    calculation, status and drift history.
+   419→
+   420→-   Statuses: NO_DRIFT, WATCH, DRIFT_DETECTED.
+   421→
+   422→-   Make thresholds configurable and documented.
+   423→
+   424→PHASE 10 — ADAPTIVE MODEL UPDATE
+   425→
+   426→-   Record drift event.
+   427→
+   428→-   Identify affected features/time window.
+   429→
+   430→-   Prepare updated training data.
+   431→
+   432→-   Retrain/update model.
+   433→
+   434→-   Evaluate candidate model.
+   435→
+   436→-   Compare old vs new model.
+   437→
+   438→-   Promote only if it passes defined criteria.
+   439→
+   440→-   Retain previous, candidate and active model versions plus metrics
+   441→    and training metadata.
+   442→
+   443→PHASE 11 — DATABASE
+   444→
+   445→-   Use PostgreSQL.
+   446→
+   447→-   Create users, transactions, messages, predictions, risk_assessments,
+   448→    explanations, drift_events, model_versions, model_metrics and
+   449→    system_events.
+   450→
+   451→-   Use timestamps and appropriate foreign keys.
+   452→
+   453→-   Use SQLAlchemy + migrations.
+   454→
+   455→-   Use environment variables for secrets.
+   456→
+   457→PHASE 12 — FASTAPI
+   458→
+   459→-   Build real REST APIs with validation, response schemas, errors,
+   460→    logging, CORS and OpenAPI documentation.
+   461→
+   462→-   Required endpoints: GET /health; POST /api/v1/transactions/analyze;
+   463→    POST /api/v1/messages/analyze; POST /api/v1/risk/analyze; GET
+   464→    /api/v1/predictions; GET /api/v1/predictions/{id}; GET
+   465→    /api/v1/explanations/{prediction_id}; GET /api/v1/dashboard/summary;
+   466→    GET /api/v1/dashboard/trends; GET /api/v1/drift/status; GET
+   467→    /api/v1/drift/history; GET /api/v1/models; POST
+   468→    /api/v1/models/retrain.
+   469→
+   470→-   No endpoint may return static dummy JSON.
+   471→
+   472→PHASE 13 — REACT FRONTEND
+   473→
+   474→-   Build Dashboard, Transaction Analyzer, Scam Message Analyzer,
+   475→    Unified Risk Analysis, Explanation View, Drift Monitoring, Model
+   476→    Performance, Prediction History and About/Dataset Information.
+   477→
+   478→-   Use Plotly for actual backend-driven charts.
+   479→
+   480→-   Implement loading, error, empty and success states.
+   481→
+   482→-   Use responsive accessible components.
+   483→
+   484→PHASE 14 — FULL INTEGRATION
+   485→
+   486→-   Connect React → FastAPI → preprocessing → model → XAI → risk engine
+   487→    → PostgreSQL → response → UI.
+   488→
+   489→-   Test transaction and message workflows end-to-end.
+   490→
+   491→-   No hardcoded predictions or statistics.
+   492→
+   493→PHASE 15 — TESTING & DOCUMENTATION
+   494→
+   495→-   Run backend, ML, NLP, XAI, drift and end-to-end tests.
+   496→
+   497→-   Generate README, architecture, dataset, ML, XAI, drift, API and
+   498→    testing documentation.
+   499→
+   500→-   Generate evaluation tables and plots suitable for the final report.
+   501→
+   502→9. TRANSACTION ML DETAILS
+   503→
+   504→-   Use reproducible preprocessing.
+   505→
+   506→-   Use scaling where appropriate, especially for Logistic Regression.
+   507→
+   508→-   Do not use future information.
+   509→
+   510→-   Use class weights or training-only resampling for imbalance.
+   511→
+   512→-   Evaluate using fraud-class precision, recall and F1, not accuracy
+   513→    alone.
+   514→
+   515→-   Store feature metadata and model version.
+   516→
+   517→10. MULTILINGUAL NLP DETAILS
+   518→
+   519→-   Unified schema: text, language, category, label, source.
+   520→
+   521→-   Labels: 0 = legitimate, 1 = scam.
+   522→
+   523→-   Evaluate each language separately and combined.
+   524→
+   525→-   Avoid random row splitting when duplicates/templates exist.
+   526→
+   527→-   Preserve linguistic indicators relevant to scam detection.
+   528→
+   529→11. UNIFIED RISK ENGINE
+   530→
+   531→  Transaction probability ─┐
+   532→  ├──> Standardized Risk Engine
+   533→  Message probability ────┘
+   534→  |
+   535→  v
+   536→  Risk Score 0–100
+   537→  |
+   538→  LOW / MEDIUM / HIGH / CRITICAL
+   539→
+   540→The fusion method must be documented and configurable. When transaction
+   541→and message inputs are submitted together, clearly state that the public
+   542→datasets do not establish a causal transaction-message relationship.
+   543→
+   544→12. EXPLAINABLE AI
+   545→
+   546→-   Use SHAP and/or LIME for real calculations.
+   547→
+   548→-   Transaction explanation should identify features contributing to the
+   549→    model prediction.
+   550→
+   551→-   Message explanation should identify words/tokens/linguistic
+   552→    indicators contributing to the model prediction.
+   553→
+   554→-   Human-readable wording should say 'contributed to the model's
+   555→    prediction' rather than implying causality.
+   556→
+   557→13. CONCEPT DRIFT & ADAPTIVE LEARNING
+   558→
+   559→-   Use temporal monitoring and PSI.
+   560→
+   561→-   Make thresholds configurable.
+   562→
+   563→-   Record drift events in PostgreSQL.
+   564→
+   565→-   Do not automatically replace the active model merely because drift
+   566→    is detected.
+   567→
+   568→-   Retrain a candidate model, evaluate it, compare it with the active
+   569→    model, and promote it only when defined criteria are satisfied.
+   570→
+   571→-   Retain model versions and evaluation metadata.
+   572→
+   573→14. DATABASE DESIGN
+   574→
+   575→users: id, name/identifier as appropriate, created_at
+   576→
+   577→transactions: id, transaction attributes, created_at
+   578→
+   579→messages: id, text, language, category, source, label if available,
+   580→created_at
+   581→
+   582→predictions: id, input_type, model_version, predicted_label,
+   583→probability, risk_score, risk_level, created_at
+   584→
+   585→risk_assessments: id, prediction references, transaction_risk,
+   586→message_risk, unified_risk, created_at
+   587→
+   588→explanations: id, prediction_id, method, explanation payload, created_at
+   589→
+   590→drift_events: id, feature, reference_period, current_period,
+   591→drift_metric, status, action_taken, created_at
+   592→
+   593→model_versions: id, model_name, version, dataset_version,
+   594→training_timestamp, active_status
+   595→
+   596→model_metrics: id, model_version_id, precision, recall, f1, roc_auc,
+   597→pr_auc, evaluation_period
+   598→
+   599→15. FASTAPI API REQUIREMENTS
+   600→
+   601→-   GET /health
+   602→
+   603→-   POST /api/v1/transactions/analyze
+   604→
+   605→-   POST /api/v1/messages/analyze
+   606→
+   607→-   POST /api/v1/risk/analyze
+   608→
+   609→-   GET /api/v1/predictions
+   610→
+   611→-   GET /api/v1/predictions/{id}
+   612→
+   613→-   GET /api/v1/explanations/{prediction_id}
+   614→
+   615→-   GET /api/v1/dashboard/summary
+   616→
+   617→-   GET /api/v1/dashboard/trends
+   618→
+   619→-   GET /api/v1/drift/status
+   620→
+   621→-   GET /api/v1/drift/history
+   622→
+   623→-   GET /api/v1/models
+   624→
+   625→-   POST /api/v1/models/retrain
+   626→
+   627→16. FRONTEND REQUIREMENTS
+   628→
+   629→-   Dashboard
+   630→
+   631→-   Transaction Analyzer
+   632→
+   633→-   Scam Message Analyzer
+   634→
+   635→-   Unified Risk Analysis
+   636→
+   637→-   Explanation View
+   638→
+   639→-   Drift Monitoring
+   640→
+   641→-   Model Performance
+   642→
+   643→-   Prediction History
+   644→
+   645→-   About / Dataset Information
+   646→
+   647→Dashboard charts must use actual backend data. Required Plotly
+   648→visualizations include risk distribution, fraud/scam trends, language
+   649→distribution, model performance and drift status.
+   650→
+   651→17. COLOR PALETTE & VISUAL DESIGN
+   652→
+   653→Use the supplied reference image as the visual source of truth. The
+   654→design should be clean, modern and minimal.
+   655→
+   656→Light Mode
+   657→
+   658→-   Background: very light/off-white
+   659→
+   660→-   Foreground: dark navy/charcoal
+   661→
+   662→-   Primary: burnt/deep orange
+   663→
+   664→-   Primary foreground: warm white
+   665→
+   666→-   Secondary: warm light beige
+   667→
+   668→-   Muted: soft gray
+   669→
+   670→-   Accent: green
+   671→
+   672→-   Destructive: red
+   673→
+   674→-   Border/Input: light gray
+   675→
+   676→-   Ring/focus: brown/orange
+   677→
+   678→-   Card: white
+   679→
+   680→Dark Mode
+   681→
+   682→-   Background: very dark navy/charcoal
+   683→
+   684→-   Foreground: white/off-white
+   685→
+   686→-   Primary: bright orange
+   687→
+   688→-   Primary foreground: white
+   689→
+   690→-   Secondary: dark slate
+   691→
+   692→-   Muted: slate gray
+   693→
+   694→-   Accent: green
+   695→
+   696→-   Destructive: red
+   697→
+   698→-   Border/Input: dark slate
+   699→
+   700→-   Ring/focus: orange/brown
+   701→
+   702→-   Card: dark navy/slate
+   703→
+   704→-   Use reusable CSS variables/theme tokens.
+   705→
+   706→-   Implement light and dark modes with a persistent theme preference.
+   707→
+   708→-   Orange = primary actions/highlights.
+   709→
+   710→-   Green = legitimate/healthy/positive.
+   711→
+   712→-   Red = suspicious/high-risk/destructive.
+   713→
+   714→-   Avoid excessive gradients, glassmorphism, random colors and
+   715→    excessive animation.
+   716→
+   717→-   Maintain accessible contrast.
+   718→
+   719→18. SECURITY & PRIVACY
+   720→
+   721→-   This is an academic research prototype and must not claim
+   722→    banking-grade security.
+   723→
+   724→-   Use environment variables for secrets.
+   725→
+   726→-   Validate inputs.
+   727→
+   728→-   Use ORM/parameterized queries.
+   729→
+   730→-   Configure CORS appropriately.
+   731→
+   732→-   Do not commit secrets.
+   733→
+   734→-   Avoid unnecessary logging of sensitive message content.
+   735→
+   736→-   Display the disclaimer: 'This system is an academic research
+   737→    prototype and decision-support tool. It does not replace bank, UPI
+   738→    provider, or law-enforcement fraud prevention systems.'
+   739→
+   740→19. TESTING REQUIREMENTS
+   741→
+   742→-   Backend: unit tests, API tests and validation tests.
+   743→
+   744→-   ML: preprocessing, prediction, metric and model-loading tests.
+   745→
+   746→-   NLP: preprocessing, language and duplicate-leakage tests.
+   747→
+   748→-   XAI: explanation generation tests.
+   749→
+   750→-   Drift: PSI and drift-status tests.
+   751→
+   752→-   Frontend: component/integration checks where practical.
+   753→
+   754→-   End-to-end: transaction form → API → model → XAI → database →
+   755→    dashboard.
+   756→
+   757→-   End-to-end: message form → API → NLP model → XAI → database →
+   758→    dashboard.
+   759→
+   760→20. MODEL REPRODUCIBILITY
+   761→
+   762→-   Every model must store model name, version, training date, dataset
+   763→    version, feature list, preprocessing version, hyperparameters and
+   764→    evaluation metrics.
+   765→
+   766→-   Set random seeds where applicable.
+   767→
+   768→-   Save preprocessing and models together correctly.
+   769→
+   770→-   Never train models inside normal prediction API request handlers.
+   771→
+   772→21. README & DOCUMENTATION
+   773→
+   774→-   README: overview, problem, objectives, architecture, datasets,
+   775→    limitations, installation, environment configuration, database
+   776→    setup, ML training, backend/frontend startup, API docs, evaluation,
+   777→    XAI, drift, adaptive retraining, testing and future scope.
+   778→
+   779→-   docs/architecture.md
+   780→
+   781→-   docs/dataset.md
+   782→
+   783→-   docs/ml.md
+   784→
+   785→-   docs/xai.md
+   786→
+   787→-   docs/drift.md
+   788→
+   789→-   docs/api.md
+   790→
+   791→-   docs/testing.md
+   792→
+   793→-   Data dictionary
+   794→
+   795→-   Model cards
+   796→
+   797→-   Evaluation report
+   798→
+   799→-   API documentation
+   800→
+   801→22. DEVELOPMENT GATES
+   802→
+   803→1.  Dataset audit works.
+   804→
+   805→2.  Transaction preprocessing works.
+   806→
+   807→3.  Transaction models train and evaluate successfully.
+   808→
+   809→4.  NLP preprocessing works.
+   810→
+   811→5.  NLP baseline works.
+   812→
+   813→6.  Multilingual transformer works.
+   814→
+   815→7.  XAI works.
+   816→
+   817→8.  Unified risk engine works.
+   818→
+   819→9.  Concept drift works.
+   820→
+   821→10. Adaptive retraining works.
+   822→
+   823→11. Database works.
+   824→
+   825→12. FastAPI works.
+   826→
+   827→13. React frontend works.
+   828→
+   829→14. Frontend/backend integration works.
+   830→
+   831→15. Full end-to-end testing works.
+   832→
+   833→Do not proceed to the next gate if the previous gate is broken. At every
+   834→gate report: what was implemented, files created/changed, commands
+   835→executed, tests performed, results, known limitations and next gate.
+   836→
+   837→23. FAILURE HANDLING
+   838→
+   839→-   Diagnose the actual error.
+   840→
+   841→-   Fix the root cause.
+   842→
+   843→-   Re-run the failed test.
+   844→
+   845→-   Never bypass a required feature.
+   846→
+   847→-   Never replace a required feature with a dummy implementation.
+   848→
+   849→-   If computation is expensive, implement a practical CPU-compatible
+   850→    version and document the limitation.
+   851→
+   852→24. DO NOT OVERENGINEER
+   853→
+   854→-   Do not add blockchain, cryptocurrency features, payment gateway
+   855→    integration, real bank integration, voice recognition, mobile app,
+   856→    chatbot or unnecessary authentication complexity.
+   857→
+   858→-   Do not pretend future-scope features are implemented.
+   859→
+   860→-   Future scope includes additional regional languages, graph neural
+   861→    networks, production-grade real-time deployment, federated learning,
+   862→    voice/call scam detection and direct UPI-app integration.
+   863→
+   864→25. ACADEMIC EVALUATION OUTPUTS
+   865→
+   866→-   Transaction model comparison: Model | Precision | Recall | F1 |
+   867→    ROC-AUC | PR-AUC.
+   868→
+   869→-   Message model comparison: Model | Language | Precision | Recall |
+   870→    F1.
+   871→
+   872→-   Drift evaluation: Time Window | Feature | PSI | Status.
+   873→
+   874→-   Adaptive comparison: Model Version | Period | Precision | Recall |
+   875→    F1.
+   876→
+   877→-   Generate plots/tables suitable for the final project report.
+   878→
+   879→26. FINAL ACCEPTANCE CHECKLIST
+   880→
+   881→☐ Dataset audit
+   882→
+   883→☐ Transaction preprocessing
+   884→
+   885→☐ Transaction fraud model
+   886→
+   887→☐ Transaction evaluation
+   888→
+   889→☐ English scam detection
+   890→
+   891→☐ Hindi scam detection
+   892→
+   893→☐ Hinglish scam detection
+   894→
+   895→☐ Multilingual model
+   896→
+   897→☐ Unified risk score
+   898→
+   899→☐ Risk levels
+   900→
+   901→☐ SHAP/LIME explanation
+   902→
+   903→☐ Concept drift detection
+   904→
+   905→☐ Adaptive retraining/model versioning
+   906→
+   907→☐ PostgreSQL persistence
+   908→
+   909→☐ FastAPI APIs
+   910→
+   911→☐ React dashboard
+   912→
+   913→☐ Plotly visualizations
+   914→
+   915→☐ Prediction history
+   916→
+   917→☐ Drift monitoring UI
+   918→
+   919→☐ Model metrics UI
+   920→
+   921→☐ Error handling
+   922→
+   923→☐ Testing
+   924→
+   925→☐ Documentation
+   926→
+   927→☐ Reproducible setup
+   928→
+   929→☐ End-to-end integration
+   930→
+   931→27. MOST IMPORTANT RULE
+   932→
+   933→BUILD REAL FUNCTIONALITY.
+   934→
+   935→-   Never create a visual placeholder for a required feature.
+   936→
+   937→-   Never hardcode model predictions.
+   938→
+   939→-   Never hardcode dashboard statistics.
+   940→
+   941→-   Never fabricate evaluation metrics.
+   942→
+   943→-   Never call PaySim real UPI banking data.
+   944→
+   945→-   Never misrepresent synthetic Hindi/Hinglish data as real-world
+   946→    collected data.
+   947→
+   948→-   Never skip model evaluation.
+   949→
+   950→-   Never skip XAI.
+   951→
+   952→-   Never skip concept drift.
+   953→
+   954→-   Never skip adaptive model updating.
+   955→
+   956→-   Never skip database persistence.
+   957→
+   958→-   Never skip frontend/backend integration.
+   959→
+   960→-   Always prefer a smaller fully working implementation over a large
+   961→    incomplete implementation.
+   962→
+   963→28. FIRST COMMAND TO Z.AI
+   964→
+   965→Start with PHASE 0: REQUIREMENTS AUDIT. Do not start by building the
+   966→frontend.
+   967→
+   968→First show the requirements traceability matrix and proposed
+   969→implementation plan before continuing.
+   970→
+   971→After Phase 0, show:
+   972→
+   973→16. Complete requirements traceability matrix.
+   974→
+   975→17. Final folder structure.
+   976→
+   977→18. Dataset assumptions and provenance.
+   978→
+   979→19. Database ER/schema design.
+   980→
+   981→20. ML pipeline architecture.
+   982→
+   983→21. NLP pipeline architecture.
+   984→
+   985→22. Unified risk-score methodology.
+   986→
+   987→23. XAI methodology.
+   988→
+   989→24. Concept-drift methodology.
+   990→
+   991→25. API list.
+   992→
+   993→26. Frontend page/component list.
+   994→
+   995→27. Testing strategy.
+   996→
+   997→28. Phase-by-phase implementation plan.
+   998→
+   999→For every synopsis requirement, identify exactly where it will be
+  1000→implemented. Do not proceed until every core requirement has a
+  1001→corresponding implementation location and test.
+  1002→
+  1003→29. REFERENCE DESIGN NOTE
+  1004→
+  1005→The supplied visual reference shows the intended light/dark theme: clean
+  1006→modern minimal cards, orange primary actions, green positive/status
+  1007→indicators, red risk/destructive states, dark navy/charcoal dark mode,
+  1008→off-white light mode, rounded cards, subtle borders, restrained shadows
+  1009→and strong typography hierarchy. Follow this visual language
+  1010→consistently throughout the application.
+  1011→

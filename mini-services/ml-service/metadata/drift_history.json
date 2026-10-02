@@ -1,0 +1,273 @@
+[
+  {
+    "id": "retrain-1790945816",
+    "type": "retrain",
+    "model_name": "transaction_xgboost",
+    "drift_window": {
+      "source": "validation",
+      "min_step": 521,
+      "max_step": 631
+    },
+    "candidate_version": "2.0.0-candidate",
+    "old_metrics": {
+      "precision": 0.999198717948718,
+      "recall": 0.9960063897763578,
+      "f1": 0.9976,
+      "roc_auc": 0.9999967498594314,
+      "pr_auc": 0.9999767669485603,
+      "confusion_matrix": [
+        [
+          8846,
+          1
+        ],
+        [
+          5,
+          1247
+        ]
+      ],
+      "threshold": 0.5
+    },
+    "new_metrics": {
+      "precision": 0.994435612082671,
+      "recall": 0.9992012779552716,
+      "f1": 0.9968127490039841,
+      "roc_auc": 0.9999467789481895,
+      "pr_auc": 0.9995988068006916,
+      "confusion_matrix": [
+        [
+          8840,
+          7
+        ],
+        [
+          1,
+          1251
+        ]
+      ],
+      "threshold": 0.5
+    },
+    "comparison": {
+      "f1_delta": -0.0007872509960159535,
+      "recall_delta": 0.0031948881789137795,
+      "precision_delta": -0.004763105866047002,
+      "precision_ratio": 0.9952330744820957
+    },
+    "promoted": false,
+    "outcome": "rejected",
+    "created_at": "2026-10-02T12:56:56+00:00"
+  },
+  {
+    "id": "retrain-1790946731",
+    "type": "retrain",
+    "model_name": "transaction_xgboost",
+    "drift_window": {
+      "source": "validation",
+      "min_step": 521,
+      "max_step": 631
+    },
+    "candidate_version": "2.0.0-candidate",
+    "old_metrics": {
+      "precision": 0.999198717948718,
+      "recall": 0.9960063897763578,
+      "f1": 0.9976,
+      "roc_auc": 0.9999967498594314,
+      "pr_auc": 0.9999767669485603,
+      "confusion_matrix": [
+        [
+          8846,
+          1
+        ],
+        [
+          5,
+          1247
+        ]
+      ],
+      "threshold": 0.5
+    },
+    "new_metrics": {
+      "precision": 0.994435612082671,
+      "recall": 0.9992012779552716,
+      "f1": 0.9968127490039841,
+      "roc_auc": 0.9999467789481895,
+      "pr_auc": 0.9995988068006916,
+      "confusion_matrix": [
+        [
+          8840,
+          7
+        ],
+        [
+          1,
+          1251
+        ]
+      ],
+      "threshold": 0.5
+    },
+    "comparison": {
+      "f1_delta": -0.0007872509960159535,
+      "recall_delta": 0.0031948881789137795,
+      "precision_delta": -0.004763105866047002,
+      "precision_ratio": 0.9952330744820957
+    },
+    "promoted": false,
+    "outcome": "rejected",
+    "created_at": "2026-10-02T13:12:11+00:00"
+  },
+  {
+    "id": "retrain-1790948182",
+    "type": "retrain",
+    "model_name": "transaction_xgboost",
+    "drift_window": null,
+    "candidate_version": "2.0.0-candidate",
+    "old_metrics": {
+      "precision": 0.999198717948718,
+      "recall": 0.9960063897763578,
+      "f1": 0.9976,
+      "roc_auc": 0.9999967498594314,
+      "pr_auc": 0.9999767669485603,
+      "confusion_matrix": [
+        [
+          8846,
+          1
+        ],
+        [
+          5,
+          1247
+        ]
+      ],
+      "threshold": 0.5
+    },
+    "new_metrics": {
+      "precision": 0.999198717948718,
+      "recall": 0.9960063897763578,
+      "f1": 0.9976,
+      "roc_auc": 0.9999967498594314,
+      "pr_auc": 0.9999767669485603,
+      "confusion_matrix": [
+        [
+          8846,
+          1
+        ],
+        [
+          5,
+          1247
+        ]
+      ],
+      "threshold": 0.5
+    },
+    "comparison": {
+      "f1_delta": 0.0,
+      "recall_delta": 0.0,
+      "precision_delta": 0.0,
+      "precision_ratio": 1.0
+    },
+    "promoted": true,
+    "outcome": "promoted",
+    "created_at": "2026-10-02T13:36:22+00:00"
+  },
+  {
+    "id": "retrain-1790948549",
+    "type": "retrain",
+    "model_name": "transaction_xgboost",
+    "drift_window": {
+      "start": 521,
+      "end": 631
+    },
+    "candidate_version": "2.0.0-candidate",
+    "old_metrics": {
+      "precision": 0.999198717948718,
+      "recall": 0.9960063897763578,
+      "f1": 0.9976,
+      "roc_auc": 0.9999967498594314,
+      "pr_auc": 0.9999767669485603,
+      "confusion_matrix": [
+        [
+          8846,
+          1
+        ],
+        [
+          5,
+          1247
+        ]
+      ],
+      "threshold": 0.5
+    },
+    "new_metrics": {
+      "precision": 0.994435612082671,
+      "recall": 0.9992012779552716,
+      "f1": 0.9968127490039841,
+      "roc_auc": 0.9999467789481895,
+      "pr_auc": 0.9995988068006916,
+      "confusion_matrix": [
+        [
+          8840,
+          7
+        ],
+        [
+          1,
+          1251
+        ]
+      ],
+      "threshold": 0.5
+    },
+    "comparison": {
+      "f1_delta": -0.0007872509960159535,
+      "recall_delta": 0.0031948881789137795,
+      "precision_delta": -0.004763105866047002,
+      "precision_ratio": 0.9952330744820957
+    },
+    "promoted": false,
+    "outcome": "rejected",
+    "created_at": "2026-10-02T13:42:29+00:00"
+  },
+  {
+    "id": "retrain-1790948587",
+    "type": "retrain",
+    "model_name": "transaction_xgboost",
+    "drift_window": null,
+    "candidate_version": "2.0.0-candidate",
+    "old_metrics": {
+      "precision": 0.999198717948718,
+      "recall": 0.9960063897763578,
+      "f1": 0.9976,
+      "roc_auc": 0.9999967498594314,
+      "pr_auc": 0.9999767669485603,
+      "confusion_matrix": [
+        [
+          8846,
+          1
+        ],
+        [
+          5,
+          1247
+        ]
+      ],
+      "threshold": 0.5
+    },
+    "new_metrics": {
+      "precision": 0.999198717948718,
+      "recall": 0.9960063897763578,
+      "f1": 0.9976,
+      "roc_auc": 0.9999967498594314,
+      "pr_auc": 0.9999767669485603,
+      "confusion_matrix": [
+        [
+          8846,
+          1
+        ],
+        [
+          5,
+          1247
+        ]
+      ],
+      "threshold": 0.5
+    },
+    "comparison": {
+      "f1_delta": 0.0,
+      "recall_delta": 0.0,
+      "precision_delta": 0.0,
+      "precision_ratio": 1.0
+    },
+    "promoted": true,
+    "outcome": "promoted",
+    "created_at": "2026-10-02T13:43:07+00:00"
+  }
+]

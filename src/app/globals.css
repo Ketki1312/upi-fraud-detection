@@ -1,0 +1,162 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/* =================================================================
+   UPI Fraud Detection — design tokens (from docx §17 + reference image)
+   Light: off-white bg, charcoal fg, burnt orange primary, mint green accent, red destructive
+   Dark : deep navy bg, white fg, bright orange primary, green accent, red destructive
+   ================================================================= */
+:root {
+  --radius: 0.625rem;
+  /* Surfaces */
+  --background: oklch(0.985 0.002 95);     /* #F8F9FA off-white */
+  --foreground: oklch(0.21 0.022 264);    /* #111827 charcoal-navy */
+  --card: oklch(1 0 0);                   /* #FFFFFF */
+  --card-foreground: oklch(0.21 0.022 264);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.022 264);
+  /* Primary — burnt/deep orange (#C2410C) */
+  --primary: oklch(0.566 0.176 41);
+  --primary-foreground: oklch(0.985 0.005 95);
+  /* Secondary — warm light beige */
+  --secondary: oklch(0.965 0.022 95);
+  --secondary-foreground: oklch(0.32 0.03 60);
+  /* Muted — soft gray */
+  --muted: oklch(0.965 0.002 250);
+  --muted-foreground: oklch(0.55 0.01 250);
+  /* Accent — green (#16A34A) legitimate/positive */
+  --accent: oklch(0.62 0.18 144);
+  --accent-foreground: oklch(0.985 0.005 95);
+  /* Destructive — red (#DC2626) */
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0.005 95);
+  /* Borders / inputs / rings — light gray, brown/orange focus */
+  --border: oklch(0.923 0.003 250);       /* #E5E7EB */
+  --input: oklch(0.956 0.003 250);
+  --ring: oklch(0.47 0.155 41);            /* brown/orange focus */
+  /* Chart palette — orange, green, red, navy, amber */
+  --chart-1: oklch(0.566 0.176 41);        /* primary orange */
+  --chart-2: oklch(0.62 0.18 144);         /* accent green */
+  --chart-3: oklch(0.577 0.245 27.325);    /* destructive red */
+  --chart-4: oklch(0.45 0.02 264);         /* navy */
+  --chart-5: oklch(0.78 0.16 80);          /* amber */
+  /* Sidebar */
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.21 0.022 264);
+  --sidebar-primary: oklch(0.566 0.176 41);
+  --sidebar-primary-foreground: oklch(0.985 0.005 95);
+  --sidebar-accent: oklch(0.96 0.025 41);
+  --sidebar-accent-foreground: oklch(0.566 0.176 41);
+  --sidebar-border: oklch(0.923 0.003 250);
+  --sidebar-ring: oklch(0.47 0.155 41);
+}
+
+.dark {
+  /* Dark mode — deep navy/charcoal */
+  --background: oklch(0.18 0.025 264);    /* #0F172A slate-900 */
+  --foreground: oklch(0.97 0.005 250);    /* #F8FAFC */
+  --card: oklch(0.27 0.025 264);          /* #1E293B slate-800 */
+  --card-foreground: oklch(0.97 0.005 250);
+  --popover: oklch(0.27 0.025 264);
+  --popover-foreground: oklch(0.97 0.005 250);
+  --primary: oklch(0.70 0.18 41);         /* #F97316 bright orange */
+  --primary-foreground: oklch(0.13 0.01 264);
+  --secondary: oklch(0.34 0.025 264);     /* dark slate */
+  --secondary-foreground: oklch(0.97 0.005 250);
+  --muted: oklch(0.34 0.025 264);
+  --muted-foreground: oklch(0.70 0.01 250);
+  --accent: oklch(0.72 0.19 144);         /* #22C55E */
+  --accent-foreground: oklch(0.13 0.01 264);
+  --destructive: oklch(0.637 0.218 25);   /* #EF4444 */
+  --destructive-foreground: oklch(0.97 0.005 250);
+  --border: oklch(1 0 0 / 12%);          /* slate-700 ~ #334155 */
+  --input: oklch(1 0 0 / 14%);
+  --ring: oklch(0.70 0.18 41);
+  --chart-1: oklch(0.70 0.18 41);
+  --chart-2: oklch(0.72 0.19 144);
+  --chart-3: oklch(0.637 0.218 25);
+  --chart-4: oklch(0.62 0.02 264);
+  --chart-5: oklch(0.78 0.16 80);
+  --sidebar: oklch(0.22 0.025 264);
+  --sidebar-foreground: oklch(0.97 0.005 250);
+  --sidebar-primary: oklch(0.70 0.18 41);
+  --sidebar-primary-foreground: oklch(0.13 0.01 264);
+  --sidebar-accent: oklch(0.30 0.03 41);
+  --sidebar-accent-foreground: oklch(0.70 0.18 41);
+  --sidebar-border: oklch(1 0 0 / 12%);
+  --sidebar-ring: oklch(0.70 0.18 41);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  /* Custom scrollbar for the long lists / scroll areas */
+  .scroll-area-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scroll-area-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scroll-area-thin::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 4px;
+  }
+  .scroll-area-thin::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+  }
+}
+
+/* Risk level pill backgrounds (used widely across tabs) */
+.risk-low     { background-color: hsl(var(--accent) / 0.15);   color: hsl(var(--accent)); }
+.risk-medium  { background-color: hsl(var(--chart-5) / 0.18);   color: hsl(var(--chart-5)); }
+.risk-high    { background-color: hsl(var(--primary) / 0.18);   color: hsl(var(--primary)); }
+.risk-critical{ background-color: hsl(var(--destructive) / 0.18); color: hsl(var(--destructive)); }

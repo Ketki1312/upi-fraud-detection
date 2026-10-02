@@ -1,0 +1,29 @@
+{
+  "source": "PaySim public mobile-money transaction simulator",
+  "target": "isFraud",
+  "sampling": "all fraud + 10% deterministic sample of legitimate transactions",
+  "removed": [
+    "nameOrig",
+    "nameDest",
+    "isFlaggedFraud"
+  ],
+  "features_added": [
+    "orig_balance_change",
+    "dest_balance_change",
+    "amount_to_orig_balance",
+    "amount_to_dest_balance"
+  ],
+  "split": "chronological by step: 70%/15%/15%",
+  "rows": {
+    "total": 643653,
+    "train": 613340,
+    "validation": 20214,
+    "test": 10099
+  },
+  "fraud": {
+    "total": 8213,
+    "train": 5781,
+    "validation": 1180,
+    "test": 1252
+  }
+}

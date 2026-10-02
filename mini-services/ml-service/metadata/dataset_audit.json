@@ -1,0 +1,1099 @@
+{
+  "generated_at": "2026-10-02T13:04:48+00:00",
+  "service": "ml-service",
+  "datasets": {
+    "PaySim": {
+      "name": "PaySim",
+      "provenance": {
+        "source": "PaySim public mobile-money transaction simulator",
+        "disclaimer": "PaySim is a PUBLIC MOBILE-MONEY SIMULATOR dataset. It is NOT real UPI banking data and does not establish a causal transaction-message relationship.",
+        "preprocessing": {
+          "source": "PaySim public mobile-money transaction simulator",
+          "target": "isFraud",
+          "sampling": "all fraud + 10% deterministic sample of legitimate transactions",
+          "removed": [
+            "nameOrig",
+            "nameDest",
+            "isFlaggedFraud"
+          ],
+          "features_added": [
+            "orig_balance_change",
+            "dest_balance_change",
+            "amount_to_orig_balance",
+            "amount_to_dest_balance"
+          ],
+          "split": "chronological by step: 70%/15%/15%",
+          "rows": {
+            "total": 643653,
+            "train": 613340,
+            "validation": 20214,
+            "test": 10099
+          },
+          "fraud": {
+            "total": 8213,
+            "train": 5781,
+            "validation": 1180,
+            "test": 1252
+          }
+        }
+      },
+      "splits": {
+        "train": {
+          "row_count": 613340,
+          "column_count": 16,
+          "columns": [
+            "step",
+            "amount",
+            "oldbalanceOrg",
+            "newbalanceOrig",
+            "oldbalanceDest",
+            "newbalanceDest",
+            "isFraud",
+            "orig_balance_change",
+            "dest_balance_change",
+            "amount_to_orig_balance",
+            "amount_to_dest_balance",
+            "type_CASH_IN",
+            "type_CASH_OUT",
+            "type_DEBIT",
+            "type_PAYMENT",
+            "type_TRANSFER"
+          ],
+          "dtypes": {
+            "step": "int64",
+            "amount": "float64",
+            "oldbalanceOrg": "float64",
+            "newbalanceOrig": "float64",
+            "oldbalanceDest": "float64",
+            "newbalanceDest": "float64",
+            "isFraud": "int64",
+            "orig_balance_change": "float64",
+            "dest_balance_change": "float64",
+            "amount_to_orig_balance": "float64",
+            "amount_to_dest_balance": "float64",
+            "type_CASH_IN": "int64",
+            "type_CASH_OUT": "int64",
+            "type_DEBIT": "int64",
+            "type_PAYMENT": "int64",
+            "type_TRANSFER": "int64"
+          },
+          "missing_values_total": 0,
+          "missing_per_column": {
+            "step": 0,
+            "amount": 0,
+            "oldbalanceOrg": 0,
+            "newbalanceOrig": 0,
+            "oldbalanceDest": 0,
+            "newbalanceDest": 0,
+            "isFraud": 0,
+            "orig_balance_change": 0,
+            "dest_balance_change": 0,
+            "amount_to_orig_balance": 0,
+            "amount_to_dest_balance": 0,
+            "type_CASH_IN": 0,
+            "type_CASH_OUT": 0,
+            "type_DEBIT": 0,
+            "type_PAYMENT": 0,
+            "type_TRANSFER": 0
+          },
+          "duplicate_rows_exact": 10,
+          "label_distribution": {
+            "0": 607559,
+            "1": 5781
+          },
+          "fraud_rate": 0.009425441027814915,
+          "step_range": {
+            "min": 1,
+            "max": 520
+          },
+          "amount_stats": {
+            "count": 613340,
+            "mean": 191466.06478069254,
+            "std": 655984.6394913367,
+            "min": 0.0,
+            "q25": 13715.0325,
+            "median": 76896.83,
+            "q75": 212176.2125,
+            "max": 92445516.64
+          },
+          "amount_stats_by_label": {
+            "fraud": {
+              "count": 5781.0,
+              "mean": 1458053.9339975782,
+              "std": 2353779.1625928837,
+              "min": 0.0,
+              "25%": 128133.0,
+              "50%": 448004.86,
+              "75%": 1534985.07,
+              "max": 10000000.0
+            },
+            "legitimate": {
+              "count": 607559.0,
+              "mean": 179414.32252694803,
+              "std": 605221.5391289134,
+              "min": 0.09,
+              "25%": 13551.885,
+              "50%": 75466.05,
+              "75%": 209529.72999999998,
+              "max": 92445516.64
+            }
+          },
+          "type_distribution": {
+            "CASH_IN": 133648,
+            "CASH_OUT": 217501,
+            "DEBIT": 3995,
+            "PAYMENT": 204812,
+            "TRANSFER": 53384
+          },
+          "temporal_per_step_window": [
+            {
+              "step_window": 0,
+              "transactions": 7319,
+              "fraud_count": 109,
+              "fraud_rate": 0.0148927449105069,
+              "mean_amount": 174678.2320207978
+            },
+            {
+              "step_window": 10,
+              "transactions": 42086,
+              "fraud_count": 122,
+              "fraud_rate": 0.002898826212992444,
+              "mean_amount": 172042.31031874203
+            },
+            {
+              "step_window": 20,
+              "transactions": 8561,
+              "fraud_count": 86,
+              "fraud_rate": 0.010045555425768017,
+              "mean_amount": 400432.26758006634
+            },
+            {
+              "step_window": 30,
+              "transactions": 21246,
+              "fraud_count": 141,
+              "fraud_rate": 0.006636543349336345,
+              "mean_amount": 324634.18569237174
+            },
+            {
+              "step_window": 40,
+              "transactions": 24292,
+              "fraud_count": 126,
+              "fraud_rate": 0.005186892804215379,
+              "mean_amount": 132339.67337052582
+            },
+            {
+              "step_window": 50,
+              "transactions": 118,
+              "fraud_count": 118,
+              "fraud_rate": 1.0,
+              "mean_amount": 1118742.2939587303
+            },
+            {
+              "step_window": 60,
+              "transactions": 148,
+              "fraud_count": 148,
+              "fraud_rate": 1.0,
+              "mean_amount": 980700.8451031747
+            },
+            {
+              "step_window": 70,
+              "transactions": 112,
+              "fraud_count": 112,
+              "fraud_rate": 1.0,
+              "mean_amount": 1443080.2626454546
+            },
+            {
+              "step_window": 80,
+              "transactions": 110,
+              "fraud_count": 110,
+              "fraud_rate": 1.0,
+              "mean_amount": 1800473.068352778
+            },
+            {
+              "step_window": 90,
+              "transactions": 2994,
+              "fraud_count": 112,
+              "fraud_rate": 0.03740814963259853,
+              "mean_amount": 560091.1081399296
+            },
+            {
+              "step_window": 100,
+              "transactions": 118,
+              "fraud_count": 118,
+              "fraud_rate": 1.0,
+              "mean_amount": 798006.5110349206
+            },
+            {
+              "step_window": 110,
+              "transactions": 637,
+              "fraud_count": 90,
+              "fraud_rate": 0.141287284144427,
+              "mean_amount": 1060749.985727212
+            },
+            {
+              "step_window": 120,
+              "transactions": 2782,
+              "fraud_count": 94,
+              "fraud_rate": 0.03378864126527678,
+              "mean_amount": 1580996.648538522
+            },
+            {
+              "step_window": 130,
+              "transactions": 34228,
+              "fraud_count": 90,
+              "fraud_rate": 0.0026294262007712983,
+              "mean_amount": 179505.36175347754
+            },
+            {
+              "step_window": 140,
+              "transactions": 7876,
+              "fraud_count": 120,
+              "fraud_rate": 0.015236160487557136,
+              "mean_amount": 459670.0636828939
+            },
+            {
+              "step_window": 150,
+              "transactions": 19369,
+              "fraud_count": 118,
+              "fraud_rate": 0.0060922092002684705,
+              "mean_amount": 371974.87088875874
+            },
+            {
+              "step_window": 160,
+              "transactions": 22922,
+              "fraud_count": 100,
+              "fraud_rate": 0.004362621062734491,
+              "mean_amount": 142356.12324258132
+            },
+            {
+              "step_window": 170,
+              "transactions": 7685,
+              "fraud_count": 122,
+              "fraud_rate": 0.015875081327260898,
+              "mean_amount": 727845.0841203067
+            },
+            {
+              "step_window": 180,
+              "transactions": 34697,
+              "fraud_count": 116,
+              "fraud_rate": 0.003343228521197798,
+              "mean_amount": 155679.66189574607
+            },
+            {
+              "step_window": 190,
+              "transactions": 2891,
+              "fraud_count": 94,
+              "fraud_rate": 0.03251470079557247,
+              "mean_amount": 717842.2673164537
+            },
+            {
+              "step_window": 200,
+              "transactions": 27590,
+              "fraud_count": 93,
+              "fraud_rate": 0.0033707865168539327,
+              "mean_amount": 458862.5565946484
+            },
+            {
+              "step_window": 210,
+              "transactions": 14570,
+              "fraud_count": 136,
+              "fraud_rate": 0.009334248455730955,
+              "mean_amount": 386773.146248703
+            },
+            {
+              "step_window": 220,
+              "transactions": 13646,
+              "fraud_count": 104,
+              "fraud_rate": 0.007621280961453906,
+              "mean_amount": 672394.9422873196
+            },
+            {
+              "step_window": 230,
+              "transactions": 25070,
+              "fraud_count": 126,
+              "fraud_rate": 0.0050259274032708415,
+              "mean_amount": 154462.62659812567
+            },
+            {
+              "step_window": 240,
+              "transactions": 3142,
+              "fraud_count": 114,
+              "fraud_rate": 0.036282622533418206,
+              "mean_amount": 949552.8290697752
+            },
+            {
+              "step_window": 250,
+              "transactions": 32194,
+              "fraud_count": 94,
+              "fraud_rate": 0.002919798720258433,
+              "mean_amount": 154264.21137730338
+            },
+            {
+              "step_window": 260,
+              "transactions": 7390,
+              "fraud_count": 118,
+              "fraud_rate": 0.015967523680649527,
+              "mean_amount": 601703.9372904481
+            },
+            {
+              "step_window": 270,
+              "transactions": 15751,
+              "fraud_count": 140,
+              "fraud_rate": 0.00888832455082217,
+              "mean_amount": 472356.525825613
+            },
+            {
+              "step_window": 280,
+              "transactions": 19291,
+              "fraud_count": 120,
+              "fraud_rate": 0.006220517339692084,
+              "mean_amount": 184372.4863683172
+            },
+            {
+              "step_window": 290,
+              "transactions": 8375,
+              "fraud_count": 102,
+              "fraud_rate": 0.012179104477611941,
+              "mean_amount": 797473.6368008188
+            },
+            {
+              "step_window": 300,
+              "transactions": 32222,
+              "fraud_count": 92,
+              "fraud_rate": 0.0028551921047731362,
+              "mean_amount": 364229.24755727925
+            },
+            {
+              "step_window": 310,
+              "transactions": 2753,
+              "fraud_count": 110,
+              "fraud_rate": 0.03995641118779513,
+              "mean_amount": 723340.060717495
+            },
+            {
+              "step_window": 320,
+              "transactions": 24404,
+              "fraud_count": 116,
+              "fraud_rate": 0.0047533191280118015,
+              "mean_amount": 424353.9929703001
+            },
+            {
+              "step_window": 330,
+              "transactions": 15388,
+              "fraud_count": 80,
+              "fraud_rate": 0.005198856251624643,
+              "mean_amount": 195873.8760819793
+            },
+            {
+              "step_window": 340,
+              "transactions": 13078,
+              "fraud_count": 96,
+              "fraud_rate": 0.007340571952897996,
+              "mean_amount": 569305.3437813248
+            },
+            {
+              "step_window": 350,
+              "transactions": 26818,
+              "fraud_count": 122,
+              "fraud_rate": 0.00454918338429413,
+              "mean_amount": 189300.92467094047
+            },
+            {
+              "step_window": 360,
+              "transactions": 2140,
+              "fraud_count": 112,
+              "fraud_rate": 0.052336448598130844,
+              "mean_amount": 1014865.0092103602
+            },
+            {
+              "step_window": 370,
+              "transactions": 28358,
+              "fraud_count": 102,
+              "fraud_rate": 0.0035968686085055364,
+              "mean_amount": 200415.0673826349
+            },
+            {
+              "step_window": 380,
+              "transactions": 7891,
+              "fraud_count": 126,
+              "fraud_rate": 0.015967557977442655,
+              "mean_amount": 1138256.3404010776
+            },
+            {
+              "step_window": 390,
+              "transactions": 19325,
+              "fraud_count": 112,
+              "fraud_rate": 0.005795601552393273,
+              "mean_amount": 483337.99608260783
+            },
+            {
+              "step_window": 400,
+              "transactions": 23320,
+              "fraud_count": 148,
+              "fraud_rate": 0.006346483704974271,
+              "mean_amount": 259189.26892260025
+            },
+            {
+              "step_window": 410,
+              "transactions": 505,
+              "fraud_count": 120,
+              "fraud_rate": 0.2376237623762376,
+              "mean_amount": 1085628.6952229897
+            },
+            {
+              "step_window": 420,
+              "transactions": 1582,
+              "fraud_count": 110,
+              "fraud_rate": 0.0695322376738306,
+              "mean_amount": 1240410.3214047402
+            },
+            {
+              "step_window": 430,
+              "transactions": 351,
+              "fraud_count": 92,
+              "fraud_rate": 0.2621082621082621,
+              "mean_amount": 970040.1842444891
+            },
+            {
+              "step_window": 440,
+              "transactions": 626,
+              "fraud_count": 110,
+              "fraud_rate": 0.1757188498402556,
+              "mean_amount": 1611571.4675155764
+            },
+            {
+              "step_window": 450,
+              "transactions": 631,
+              "fraud_count": 96,
+              "fraud_rate": 0.15213946117274169,
+              "mean_amount": 760468.6292238875
+            },
+            {
+              "step_window": 460,
+              "transactions": 817,
+              "fraud_count": 124,
+              "fraud_rate": 0.15177478580171358,
+              "mean_amount": 883930.6994251143
+            },
+            {
+              "step_window": 470,
+              "transactions": 1283,
+              "fraud_count": 82,
+              "fraud_rate": 0.06391270459859703,
+              "mean_amount": 706648.596365143
+            },
+            {
+              "step_window": 480,
+              "transactions": 229,
+              "fraud_count": 106,
+              "fraud_rate": 0.462882096069869,
+              "mean_amount": 806084.7891937124
+            },
+            {
+              "step_window": 490,
+              "transactions": 1569,
+              "fraud_count": 108,
+              "fraud_rate": 0.06883365200764818,
+              "mean_amount": 1089951.2034976808
+            },
+            {
+              "step_window": 500,
+              "transactions": 1083,
+              "fraud_count": 114,
+              "fraud_rate": 0.10526315789473684,
+              "mean_amount": 1319470.4511084205
+            },
+            {
+              "step_window": 510,
+              "transactions": 1437,
+              "fraud_count": 98,
+              "fraud_rate": 0.06819763395963814,
+              "mean_amount": 945208.877104888
+            },
+            {
+              "step_window": 520,
+              "transactions": 320,
+              "fraud_count": 12,
+              "fraud_rate": 0.0375,
+              "mean_amount": 267670.31728125
+            }
+          ]
+        },
+        "validation": {
+          "row_count": 20214,
+          "column_count": 16,
+          "columns": [
+            "step",
+            "amount",
+            "oldbalanceOrg",
+            "newbalanceOrig",
+            "oldbalanceDest",
+            "newbalanceDest",
+            "isFraud",
+            "orig_balance_change",
+            "dest_balance_change",
+            "amount_to_orig_balance",
+            "amount_to_dest_balance",
+            "type_CASH_IN",
+            "type_CASH_OUT",
+            "type_DEBIT",
+            "type_PAYMENT",
+            "type_TRANSFER"
+          ],
+          "dtypes": {
+            "step": "int64",
+            "amount": "float64",
+            "oldbalanceOrg": "float64",
+            "newbalanceOrig": "float64",
+            "oldbalanceDest": "float64",
+            "newbalanceDest": "float64",
+            "isFraud": "int64",
+            "orig_balance_change": "float64",
+            "dest_balance_change": "float64",
+            "amount_to_orig_balance": "float64",
+            "amount_to_dest_balance": "float64",
+            "type_CASH_IN": "int64",
+            "type_CASH_OUT": "int64",
+            "type_DEBIT": "int64",
+            "type_PAYMENT": "int64",
+            "type_TRANSFER": "int64"
+          },
+          "missing_values_total": 0,
+          "missing_per_column": {
+            "step": 0,
+            "amount": 0,
+            "oldbalanceOrg": 0,
+            "newbalanceOrig": 0,
+            "oldbalanceDest": 0,
+            "newbalanceDest": 0,
+            "isFraud": 0,
+            "orig_balance_change": 0,
+            "dest_balance_change": 0,
+            "amount_to_orig_balance": 0,
+            "amount_to_dest_balance": 0,
+            "type_CASH_IN": 0,
+            "type_CASH_OUT": 0,
+            "type_DEBIT": 0,
+            "type_PAYMENT": 0,
+            "type_TRANSFER": 0
+          },
+          "duplicate_rows_exact": 4,
+          "label_distribution": {
+            "0": 19034,
+            "1": 1180
+          },
+          "fraud_rate": 0.0583753833976452,
+          "step_range": {
+            "min": 521,
+            "max": 631
+          },
+          "amount_stats": {
+            "count": 20214,
+            "mean": 219687.752743643,
+            "std": 676531.2407790434,
+            "min": 0.0,
+            "q25": 11981.77,
+            "median": 74502.345,
+            "q75": 211936.1225,
+            "max": 14665101.05
+          },
+          "amount_stats_by_label": {
+            "fraud": {
+              "count": 1180.0,
+              "mean": 1268878.779822034,
+              "std": 2109642.8377570524,
+              "min": 0.0,
+              "25%": 135346.3825,
+              "50%": 425281.45999999996,
+              "75%": 1322277.84,
+              "max": 10000000.0
+            },
+            "legitimate": {
+              "count": 19034.0,
+              "mean": 154643.86223442262,
+              "std": 371349.32886622276,
+              "min": 2.15,
+              "25%": 10948.865,
+              "50%": 64201.76,
+              "75%": 194206.3625,
+              "max": 14665101.05
+            }
+          },
+          "type_distribution": {
+            "CASH_IN": 4266,
+            "CASH_OUT": 6592,
+            "DEBIT": 157,
+            "PAYMENT": 6862,
+            "TRANSFER": 2337
+          },
+          "temporal_per_step_window": [
+            {
+              "step_window": 520,
+              "transactions": 3610,
+              "fraud_count": 102,
+              "fraud_rate": 0.028254847645429362,
+              "mean_amount": 574194.0545848525
+            },
+            {
+              "step_window": 530,
+              "transactions": 548,
+              "fraud_count": 102,
+              "fraud_rate": 0.18613138686131386,
+              "mean_amount": 439097.74944663356
+            },
+            {
+              "step_window": 540,
+              "transactions": 3981,
+              "fraud_count": 72,
+              "fraud_rate": 0.01808590806330068,
+              "mean_amount": 584353.6935772321
+            },
+            {
+              "step_window": 550,
+              "transactions": 833,
+              "fraud_count": 118,
+              "fraud_rate": 0.14165666266506602,
+              "mean_amount": 933117.347954876
+            },
+            {
+              "step_window": 560,
+              "transactions": 2082,
+              "fraud_count": 126,
+              "fraud_rate": 0.06051873198847262,
+              "mean_amount": 760681.6301514031
+            },
+            {
+              "step_window": 570,
+              "transactions": 1482,
+              "fraud_count": 116,
+              "fraud_rate": 0.07827260458839407,
+              "mean_amount": 386036.94434754294
+            },
+            {
+              "step_window": 580,
+              "transactions": 2003,
+              "fraud_count": 98,
+              "fraud_rate": 0.04892661008487269,
+              "mean_amount": 437316.7370271987
+            },
+            {
+              "step_window": 590,
+              "transactions": 3889,
+              "fraud_count": 80,
+              "fraud_rate": 0.020570840833119053,
+              "mean_amount": 267231.631493393
+            },
+            {
+              "step_window": 600,
+              "transactions": 323,
+              "fraud_count": 118,
+              "fraud_rate": 0.3653250773993808,
+              "mean_amount": 946505.0677650794
+            },
+            {
+              "step_window": 610,
+              "transactions": 1215,
+              "fraud_count": 126,
+              "fraud_rate": 0.1037037037037037,
+              "mean_amount": 830974.045962739
+            },
+            {
+              "step_window": 620,
+              "transactions": 219,
+              "fraud_count": 106,
+              "fraud_rate": 0.4840182648401826,
+              "mean_amount": 1003119.568470229
+            },
+            {
+              "step_window": 630,
+              "transactions": 29,
+              "fraud_count": 16,
+              "fraud_rate": 0.5517241379310345,
+              "mean_amount": 1533845.7855882351
+            }
+          ]
+        },
+        "test": {
+          "row_count": 10099,
+          "column_count": 16,
+          "columns": [
+            "step",
+            "amount",
+            "oldbalanceOrg",
+            "newbalanceOrig",
+            "oldbalanceDest",
+            "newbalanceDest",
+            "isFraud",
+            "orig_balance_change",
+            "dest_balance_change",
+            "amount_to_orig_balance",
+            "amount_to_dest_balance",
+            "type_CASH_IN",
+            "type_CASH_OUT",
+            "type_DEBIT",
+            "type_PAYMENT",
+            "type_TRANSFER"
+          ],
+          "dtypes": {
+            "step": "int64",
+            "amount": "float64",
+            "oldbalanceOrg": "float64",
+            "newbalanceOrig": "float64",
+            "oldbalanceDest": "float64",
+            "newbalanceDest": "float64",
+            "isFraud": "int64",
+            "orig_balance_change": "float64",
+            "dest_balance_change": "float64",
+            "amount_to_orig_balance": "float64",
+            "amount_to_dest_balance": "float64",
+            "type_CASH_IN": "int64",
+            "type_CASH_OUT": "int64",
+            "type_DEBIT": "int64",
+            "type_PAYMENT": "int64",
+            "type_TRANSFER": "int64"
+          },
+          "missing_values_total": 0,
+          "missing_per_column": {
+            "step": 0,
+            "amount": 0,
+            "oldbalanceOrg": 0,
+            "newbalanceOrig": 0,
+            "oldbalanceDest": 0,
+            "newbalanceDest": 0,
+            "isFraud": 0,
+            "orig_balance_change": 0,
+            "dest_balance_change": 0,
+            "amount_to_orig_balance": 0,
+            "amount_to_dest_balance": 0,
+            "type_CASH_IN": 0,
+            "type_CASH_OUT": 0,
+            "type_DEBIT": 0,
+            "type_PAYMENT": 0,
+            "type_TRANSFER": 0
+          },
+          "duplicate_rows_exact": 6,
+          "label_distribution": {
+            "0": 8847,
+            "1": 1252
+          },
+          "fraud_rate": 0.12397267056144173,
+          "step_range": {
+            "min": 632,
+            "max": 743
+          },
+          "amount_stats": {
+            "count": 10099,
+            "mean": 348483.6328626597,
+            "std": 1181056.0533142954,
+            "min": 0.0,
+            "q25": 15072.415,
+            "median": 91376.38,
+            "q75": 238759.095,
+            "max": 10000000.0
+          },
+          "amount_stats_by_label": {
+            "fraud": {
+              "count": 1252.0,
+              "mean": 1701380.7309984027,
+              "std": 2839049.5384919546,
+              "min": 0.0,
+              "25%": 114805.0475,
+              "50%": 404897.15,
+              "75%": 1548376.44,
+              "max": 10000000.0
+            },
+            "legitimate": {
+              "count": 8847.0,
+              "mean": 157025.83170227197,
+              "std": 395893.77577595145,
+              "min": 0.36,
+              "25%": 12782.105,
+              "50%": 73014.94,
+              "75%": 199597.83500000002,
+              "max": 10000000.0
+            }
+          },
+          "type_distribution": {
+            "CASH_IN": 2156,
+            "CASH_OUT": 3497,
+            "DEBIT": 71,
+            "PAYMENT": 2983,
+            "TRANSFER": 1392
+          },
+          "temporal_per_step_window": [
+            {
+              "step_window": 630,
+              "transactions": 406,
+              "fraud_count": 94,
+              "fraud_rate": 0.2315270935960591,
+              "mean_amount": 905636.7478698193
+            },
+            {
+              "step_window": 640,
+              "transactions": 661,
+              "fraud_count": 120,
+              "fraud_rate": 0.1815431164901664,
+              "mean_amount": 1318394.6445037506
+            },
+            {
+              "step_window": 650,
+              "transactions": 578,
+              "fraud_count": 110,
+              "fraud_rate": 0.1903114186851211,
+              "mean_amount": 926847.4222463595
+            },
+            {
+              "step_window": 660,
+              "transactions": 853,
+              "fraud_count": 90,
+              "fraud_rate": 0.10550996483001172,
+              "mean_amount": 756192.9214280245
+            },
+            {
+              "step_window": 670,
+              "transactions": 366,
+              "fraud_count": 102,
+              "fraud_rate": 0.2786885245901639,
+              "mean_amount": 1995003.7578862973
+            },
+            {
+              "step_window": 680,
+              "transactions": 3290,
+              "fraud_count": 108,
+              "fraud_rate": 0.03282674772036474,
+              "mean_amount": 906344.1652945036
+            },
+            {
+              "step_window": 690,
+              "transactions": 2356,
+              "fraud_count": 132,
+              "fraud_rate": 0.05602716468590832,
+              "mean_amount": 553461.7015624772
+            },
+            {
+              "step_window": 700,
+              "transactions": 592,
+              "fraud_count": 98,
+              "fraud_rate": 0.16554054054054054,
+              "mean_amount": 1313538.9451893843
+            },
+            {
+              "step_window": 710,
+              "transactions": 715,
+              "fraud_count": 116,
+              "fraud_rate": 0.16223776223776223,
+              "mean_amount": 828172.9050372137
+            },
+            {
+              "step_window": 720,
+              "transactions": 104,
+              "fraud_count": 104,
+              "fraud_rate": 1.0,
+              "mean_amount": 859216.4079536796
+            },
+            {
+              "step_window": 730,
+              "transactions": 128,
+              "fraud_count": 128,
+              "fraud_rate": 1.0,
+              "mean_amount": 1436853.268420238
+            },
+            {
+              "step_window": 740,
+              "transactions": 50,
+              "fraud_count": 50,
+              "fraud_rate": 1.0,
+              "mean_amount": 2119372.4202786796
+            }
+          ]
+        }
+      }
+    },
+    "Hindi": {
+      "name": "Hindi",
+      "provenance": {
+        "source": "Synthetic Hindi SMS dataset (Hinglish-transliterated counterpart exists)",
+        "disclaimer": "Hindi/Hinglish CSVs are marked source=Synthetic. They are NOT real-world collected banking messages."
+      },
+      "available": true,
+      "stats": {
+        "row_count": 10000,
+        "column_count": 6,
+        "columns": [
+          "id",
+          "text",
+          "language",
+          "category",
+          "label",
+          "source"
+        ],
+        "dtypes": {
+          "id": "int64",
+          "text": "object",
+          "language": "object",
+          "category": "object",
+          "label": "int64",
+          "source": "object"
+        },
+        "missing_values_total": 0,
+        "missing_per_column": {
+          "id": 0,
+          "text": 0,
+          "language": 0,
+          "category": 0,
+          "label": 0,
+          "source": 0
+        },
+        "duplicate_rows_exact": 9979,
+        "label_distribution": {
+          "0": 5000,
+          "1": 5000
+        },
+        "category_distribution": {
+          "Legitimate": 5000,
+          "Electricity_Scam": 853,
+          "UPI_Scam": 853,
+          "OTP_Scam": 852,
+          "KYC_Scam": 835,
+          "Refund_Scam": 825,
+          "Fake_Customer_Care": 782
+        },
+        "language_distribution": {
+          "Hindi": 10000
+        },
+        "source_distribution": {
+          "Synthetic": 10000
+        },
+        "duplicate_rows_normalized": 9979,
+        "text_length_stats": {
+          "mean": 36.6968,
+          "std": 8.045181306485604,
+          "min": 26,
+          "max": 53
+        }
+      }
+    },
+    "Hinglish": {
+      "name": "Hinglish",
+      "provenance": {
+        "source": "Synthetic Hinglish SMS dataset (transliterated)",
+        "disclaimer": "Marked source=Synthetic \u2014 not real-world collected data."
+      },
+      "available": true,
+      "stats": {
+        "row_count": 10000,
+        "column_count": 6,
+        "columns": [
+          "id",
+          "text",
+          "language",
+          "category",
+          "label",
+          "source"
+        ],
+        "dtypes": {
+          "id": "int64",
+          "text": "object",
+          "language": "object",
+          "category": "object",
+          "label": "int64",
+          "source": "object"
+        },
+        "missing_values_total": 0,
+        "missing_per_column": {
+          "id": 0,
+          "text": 0,
+          "language": 0,
+          "category": 0,
+          "label": 0,
+          "source": 0
+        },
+        "duplicate_rows_exact": 9980,
+        "label_distribution": {
+          "0": 5000,
+          "1": 5000
+        },
+        "category_distribution": {
+          "Legitimate": 5000,
+          "Refund_Scam": 864,
+          "Fake_Customer_Care": 850,
+          "UPI_Scam": 827,
+          "KYC_Scam": 825,
+          "Electricity_Scam": 822,
+          "OTP_Scam": 812
+        },
+        "language_distribution": {
+          "Hinglish": 10000
+        },
+        "source_distribution": {
+          "Synthetic": 10000
+        },
+        "duplicate_rows_normalized": 9980,
+        "text_length_stats": {
+          "mean": 39.8078,
+          "std": 9.249195312101055,
+          "min": 28,
+          "max": 61
+        }
+      }
+    },
+    "English": {
+      "name": "English",
+      "provenance": {
+        "source": "UCI SMS Spam Collection v1 (public) \u2014 downloaded by train.py",
+        "url": "https://archive.ics.uci.edu/ml/machine-learning-databases/00228/smsspamcollection.zip",
+        "local_file": "data/raw/english/english_sms_spam.csv",
+        "disclaimer": "Public dataset, not collected by us. The original `sms spam collection.zip` was not in the user upload; train.py downloads it from the UCI archive at training time. If download is blocked by the sandbox, English falls back to 'not_trained' and no English data is fabricated."
+      },
+      "available": true,
+      "stats": {
+        "row_count": 5574,
+        "column_count": 5,
+        "columns": [
+          "text",
+          "language",
+          "category",
+          "label",
+          "source"
+        ],
+        "dtypes": {
+          "text": "object",
+          "language": "object",
+          "category": "object",
+          "label": "int64",
+          "source": "object"
+        },
+        "missing_values_total": 0,
+        "missing_per_column": {
+          "text": 0,
+          "language": 0,
+          "category": 0,
+          "label": 0,
+          "source": 0
+        },
+        "duplicate_rows_exact": 414,
+        "label_distribution": {
+          "0": 4827,
+          "1": 747
+        },
+        "category_distribution": {
+          "ham": 4827,
+          "spam": 747
+        },
+        "language_distribution": {
+          "English": 5574
+        },
+        "source_distribution": {
+          "UCI_SMS_Spam_v1": 5574
+        },
+        "duplicate_rows_normalized": 444,
+        "text_length_stats": {
+          "mean": 80.57140294223179,
+          "std": 59.913639448213765,
+          "min": 2,
+          "max": 910
+        }
+      }
+    }
+  }
+}

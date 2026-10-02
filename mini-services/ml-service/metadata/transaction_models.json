@@ -1,0 +1,317 @@
+{
+  "generated_at": "2026-10-02T13:08:00+00:00",
+  "service": "ml-service",
+  "model_family": "transaction",
+  "dataset_version": "paysim_v1",
+  "random_seed": 42,
+  "active_model": "transaction_xgboost",
+  "active_version": "1.0.0",
+  "models": {
+    "transaction_lr": {
+      "name": "transaction_lr",
+      "type": "logistic_regression",
+      "version": "1.0.0",
+      "active": false,
+      "dataset_version": "paysim_v1",
+      "training_timestamp": "2026-10-02T13:07:32+00:00",
+      "features": [
+        "amount",
+        "oldbalanceOrg",
+        "newbalanceOrig",
+        "oldbalanceDest",
+        "newbalanceDest",
+        "orig_balance_change",
+        "dest_balance_change",
+        "amount_to_orig_balance",
+        "amount_to_dest_balance",
+        "type_CASH_IN",
+        "type_CASH_OUT",
+        "type_DEBIT",
+        "type_PAYMENT",
+        "type_TRANSFER"
+      ],
+      "hyperparameters": {
+        "model": "LogisticRegression",
+        "scaler": "StandardScaler",
+        "class_weight": "balanced",
+        "C": 1.0,
+        "max_iter": 1000,
+        "random_state": 42,
+        "subsample_legit_rows": 100000,
+        "subsample_keep_all_fraud": true
+      },
+      "metrics": {
+        "precision": 0.7125676488274203,
+        "recall": 0.9464856230031949,
+        "f1": 0.8130360205831904,
+        "roc_auc": 0.9895303944117806,
+        "pr_auc": 0.9443024795804257,
+        "confusion_matrix": [
+          [
+            8369,
+            478
+          ],
+          [
+            67,
+            1185
+          ]
+        ],
+        "threshold": 0.5
+      },
+      "artifact": "models/transaction_lr.joblib"
+    },
+    "transaction_rf": {
+      "name": "transaction_rf",
+      "type": "random_forest",
+      "version": "1.0.0",
+      "active": false,
+      "dataset_version": "paysim_v1",
+      "training_timestamp": "2026-10-02T13:07:49+00:00",
+      "features": [
+        "amount",
+        "oldbalanceOrg",
+        "newbalanceOrig",
+        "oldbalanceDest",
+        "newbalanceDest",
+        "orig_balance_change",
+        "dest_balance_change",
+        "amount_to_orig_balance",
+        "amount_to_dest_balance",
+        "type_CASH_IN",
+        "type_CASH_OUT",
+        "type_DEBIT",
+        "type_PAYMENT",
+        "type_TRANSFER"
+      ],
+      "hyperparameters": {
+        "model": "RandomForestClassifier",
+        "n_estimators": 200,
+        "max_depth": 12,
+        "class_weight": "balanced_subsample",
+        "n_jobs": -1,
+        "random_state": 42,
+        "subsample_legit_rows": 100000,
+        "subsample_keep_all_fraud": true
+      },
+      "metrics": {
+        "precision": 1.0,
+        "recall": 0.9992012779552716,
+        "f1": 0.9996004794246903,
+        "roc_auc": 0.9999999999999999,
+        "pr_auc": 1.0,
+        "confusion_matrix": [
+          [
+            8847,
+            0
+          ],
+          [
+            1,
+            1251
+          ]
+        ],
+        "threshold": 0.5
+      },
+      "artifact": "models/transaction_rf.joblib"
+    },
+    "transaction_xgboost": {
+      "name": "transaction_xgboost",
+      "type": "xgboost",
+      "version": "3.0.0",
+      "active": true,
+      "dataset_version": "paysim_v1",
+      "training_timestamp": "2026-10-02T13:43:07+00:00",
+      "features": [
+        "amount",
+        "oldbalanceOrg",
+        "newbalanceOrig",
+        "oldbalanceDest",
+        "newbalanceDest",
+        "orig_balance_change",
+        "dest_balance_change",
+        "amount_to_orig_balance",
+        "amount_to_dest_balance",
+        "type_CASH_IN",
+        "type_CASH_OUT",
+        "type_DEBIT",
+        "type_PAYMENT",
+        "type_TRANSFER"
+      ],
+      "hyperparameters": {
+        "model": "XGBClassifier",
+        "n_estimators": 200,
+        "max_depth": 6,
+        "learning_rate": 0.1,
+        "scale_pos_weight": 105.0958,
+        "eval_metric": "aucpr",
+        "tree_method": "hist",
+        "random_state": 42,
+        "subsample_legit_rows": null,
+        "subsample_keep_all_fraud": true
+      },
+      "metrics": {
+        "precision": 0.999198717948718,
+        "recall": 0.9960063897763578,
+        "f1": 0.9976,
+        "roc_auc": 0.9999967498594314,
+        "pr_auc": 0.9999767669485603,
+        "confusion_matrix": [
+          [
+            8846,
+            1
+          ],
+          [
+            5,
+            1247
+          ]
+        ],
+        "threshold": 0.5
+      },
+      "artifact": "models/transaction_xgboost.joblib",
+      "last_candidate_rejected": {
+        "candidate_metrics": {
+          "precision": 0.994435612082671,
+          "recall": 0.9992012779552716,
+          "f1": 0.9968127490039841,
+          "roc_auc": 0.9999467789481895,
+          "pr_auc": 0.9995988068006916,
+          "confusion_matrix": [
+            [
+              8840,
+              7
+            ],
+            [
+              1,
+              1251
+            ]
+          ],
+          "threshold": 0.5
+        },
+        "active_metrics": {
+          "precision": 0.999198717948718,
+          "recall": 0.9960063897763578,
+          "f1": 0.9976,
+          "roc_auc": 0.9999967498594314,
+          "pr_auc": 0.9999767669485603,
+          "confusion_matrix": [
+            [
+              8846,
+              1
+            ],
+            [
+              5,
+              1247
+            ]
+          ],
+          "threshold": 0.5
+        },
+        "at": "2026-10-02T13:42:29+00:00"
+      },
+      "previous_version": "2.0.0",
+      "previous_metrics": {
+        "precision": 0.999198717948718,
+        "recall": 0.9960063897763578,
+        "f1": 0.9976,
+        "roc_auc": 0.9999967498594314,
+        "pr_auc": 0.9999767669485603,
+        "confusion_matrix": [
+          [
+            8846,
+            1
+          ],
+          [
+            5,
+            1247
+          ]
+        ],
+        "threshold": 0.5
+      },
+      "promotion_history": [
+        {
+          "from": "1.0.0",
+          "to": "2.0.0",
+          "old_metrics": {
+            "precision": 0.999198717948718,
+            "recall": 0.9960063897763578,
+            "f1": 0.9976,
+            "roc_auc": 0.9999967498594314,
+            "pr_auc": 0.9999767669485603,
+            "confusion_matrix": [
+              [
+                8846,
+                1
+              ],
+              [
+                5,
+                1247
+              ]
+            ],
+            "threshold": 0.5
+          },
+          "new_metrics": {
+            "precision": 0.999198717948718,
+            "recall": 0.9960063897763578,
+            "f1": 0.9976,
+            "roc_auc": 0.9999967498594314,
+            "pr_auc": 0.9999767669485603,
+            "confusion_matrix": [
+              [
+                8846,
+                1
+              ],
+              [
+                5,
+                1247
+              ]
+            ],
+            "threshold": 0.5
+          },
+          "promoted": true,
+          "at": "2026-10-02T13:36:22+00:00"
+        },
+        {
+          "from": "2.0.0",
+          "to": "3.0.0",
+          "old_metrics": {
+            "precision": 0.999198717948718,
+            "recall": 0.9960063897763578,
+            "f1": 0.9976,
+            "roc_auc": 0.9999967498594314,
+            "pr_auc": 0.9999767669485603,
+            "confusion_matrix": [
+              [
+                8846,
+                1
+              ],
+              [
+                5,
+                1247
+              ]
+            ],
+            "threshold": 0.5
+          },
+          "new_metrics": {
+            "precision": 0.999198717948718,
+            "recall": 0.9960063897763578,
+            "f1": 0.9976,
+            "roc_auc": 0.9999967498594314,
+            "pr_auc": 0.9999767669485603,
+            "confusion_matrix": [
+              [
+                8846,
+                1
+              ],
+              [
+                5,
+                1247
+              ]
+            ],
+            "threshold": 0.5
+          },
+          "promoted": true,
+          "at": "2026-10-02T13:43:07+00:00"
+        }
+      ]
+    }
+  },
+  "last_updated": "2026-10-02T13:43:07+00:00"
+}

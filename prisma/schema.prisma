@@ -1,0 +1,167 @@
+// Prisma schema for UPI Fraud Detection research prototype.
+// SQLite is used in place of PostgreSQL (sandbox constraint).
+// All timestamp columns are stored as DateTime (Prisma maps to SQLite INTEGER unix ms).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---- Auth / identity ----
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  role      String   @default("analyst")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  predictions Prediction[]
+}
+
+// ---- Inputs ----
+model Transaction {
+  id            String   @id @default(cuid())
+  step          Int
+  type          String // CASH_IN, CASH_OUT, DEBIT, PAYMENT, TRANSFER
+  amount        Float
+  oldBalanceOrg Float
+  newBalanceOrig Float
+  oldBalanceDest Float
+  newBalanceDest Float
+  // derived features (computed during analysis) stored as JSON string
+  derivedFeatures String? // JSON: {orig_balance_change, dest_balance_change, amount_to_orig_balance, amount_to_dest_balance}
+  isFraudKnown   Int? // for evaluation-only rows imported from PaySim test split
+  createdAt      DateTime @default(now())
+
+  prediction     Prediction?
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  text       String
+  language   String   // English | Hindi | Hinglish
+  category   String?
+  labelKnown Int?     // 0 legitimate, 1 scam (for evaluation rows)
+  source     String?
+  createdAt  DateTime @default(now())
+
+  prediction  Prediction?
+}
+
+// ---- Outputs ----
+model Prediction {
+  id              String   @id @default(cuid())
+  inputType       String   // transaction | message
+  transactionId  String?  @unique
+  messageId       String?  @unique
+  userId          String?
+  modelVersion    String
+  predictedLabel  Int      // 0 legitimate, 1 fraud/scam
+  probability     Float
+  riskScore       Int      // 0–100
+  riskLevel       String   // LOW | MEDIUM | HIGH | CRITICAL
+  languageDetected String?
+  inputSummary    String   // short human-readable summary of the input
+  createdAt       DateTime @default(now())
+
+  transaction     Transaction? @relation(fields: [transactionId], references: [id])
+  message         Message?    @relation(fields: [messageId], references: [id])
+  user            User?       @relation(fields: [userId], references: [id])
+  explanation     Explanation?
+  riskAssessment  RiskAssessment?
+}
+
+model RiskAssessment {
+  id             String   @id @default(cuid())
+  predictionId   String   @unique
+  transactionRisk Int?    // 0–100
+  messageRisk    Int?     // 0–100
+  unifiedRisk    Int      // 0–100
+  riskLevel      String
+  fusionMethod   String
+  disclaimer     String
+  createdAt      DateTime @default(now())
+
+  prediction     Prediction @relation(fields: [predictionId], references: [id])
+}
+
+model Explanation {
+  id           String   @id @default(cuid())
+  predictionId String   @unique
+  method       String   // SHAP | LIME
+  payload      String   // JSON: contributions, baseline, top_features, etc.
+  humanReadable String  // pre-rendered human-readable text
+  createdAt    DateTime @default(now())
+
+  prediction   Prediction @relation(fields: [predictionId], references: [id])
+}
+
+// ---- Drift & adaptive ----
+model DriftEvent {
+  id               String   @id @default(cuid())
+  feature          String
+  referencePeriod  String   // e.g. "step 1–100"
+  currentPeriod    String   // e.g. "step 601–700"
+  driftMetric      Float    // PSI value
+  status           String   // NO_DRIFT | WATCH | DRIFT_DETECTED
+  actionTaken      String?  // e.g. "candidate retrain scheduled"
+  createdAt        DateTime @default(now())
+}
+
+model ModelVersion {
+  id              String   @id @default(cuid())
+  modelName       String   // transaction_xgboost | nlp_tfidf_lr_hi | ...
+  version         String   // semver-like, e.g. 1.0.0
+  datasetVersion  String
+  trainingTimestamp DateTime
+  active          Boolean  @default(false)
+  artifactPath    String
+  status          String   @default("active") // active | candidate | previous | archived
+  metricsJson     String   // JSON: {precision, recall, f1, roc_auc, pr_auc?}
+  hyperparamsJson String?
+  featureListJson String?
+  createdAt       DateTime @default(now())
+
+  metrics         ModelMetric[]
+}
+
+model ModelMetric {
+  id             String   @id @default(cuid())
+  modelVersionId String
+  precision      Float
+  recall         Float
+  f1             Float
+  rocAuc         Float?
+  prAuc          Float?
+  evaluationPeriod String?
+  createdAt      DateTime @default(now())
+
+  modelVersion    ModelVersion @relation(fields: [modelVersionId], references: [id])
+}
+
+model SystemEvent {
+  id        String   @id @default(cuid())
+  eventType String   // info | warning | error | drift | retrain | promote
+  message   String
+  detail    String?
+  createdAt DateTime @default(now())
+}
+
+// ---- Data audit / metadata (so dashboards can show dataset stats from real audit) ----
+model DatasetAudit {
+  id           String   @id @default(cuid())
+  datasetName  String
+  rowCount     Int
+  columnsJson  String
+  labelDistributionJson String
+  missingValuesJson String
+  duplicatesJson String
+  provenance   String
+  auditJson   String
+  createdAt   DateTime @default(now())
+}

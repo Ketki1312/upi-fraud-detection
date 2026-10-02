@@ -1,0 +1,698 @@
+     1→"""
+     2→index.py — FastAPI service for the UPI Fraud Detection ML prototype.
+     3→
+     4→Exposes 13 endpoints on port 4000 (run with `python3 -m uvicorn index:app --port 4000`).
+     5→
+     6→Endpoints:
+     7→    GET  /health
+     8→    POST /api/v1/transactions/analyze
+     9→    POST /api/v1/messages/analyze
+    10→    POST /api/v1/risk/analyze
+    11→    GET  /api/v1/dashboard/summary
+    12→    GET  /api/v1/dashboard/trends
+    13→    GET  /api/v1/drift/status
+    14→    GET  /api/v1/drift/history
+    15→    GET  /api/v1/models
+    16→    POST /api/v1/models/retrain
+    17→
+    18→CORS is enabled for all origins (dev environment).
+    19→"""
+    20→from __future__ import annotations
+    21→import json
+    22→import os
+    23→import re
+    24→import time
+    25→import math
+    26→import threading
+    27→from datetime import datetime, timezone
+    28→from pathlib import Path
+    29→from typing import Dict, Any, List, Optional, Union
+    30→
+    31→import joblib
+    32→import numpy as np
+    33→import pandas as pd
+    34→
+    35→from fastapi import FastAPI, HTTPException, Body
+    36→from fastapi.middleware.cors import CORSMiddleware
+    37→from pydantic import BaseModel, Field
+    38→
+    39→# Local modules
+    40→from risk_engine import build_risk_response, transaction_risk_score, message_risk_score, DISCLAIMER
+    41→from drift_engine import evaluate_drift
+    42→from xai_engine import TransactionExplainer, MessageExplainer
+    43→
+    44→# Reuse constants from train.py
+    45→from train import (
+    46→    TX_FEATURES, load_paysim_split, compute_classification_metrics,
+    47→    MODELS_DIR, METADATA_DIR,
+    48→)
+    49→
+    50→# ---------------------------------------------------------------------------
+    51→# Config
+    52→# ---------------------------------------------------------------------------
+    53→BASE_DIR = Path(__file__).resolve().parent
+    54→DATA_DIR = BASE_DIR / "data" / "raw"
+    55→PAYSIM_DIR = DATA_DIR / "paysim"
+    56→
+    57→app = FastAPI(
+    58→    title="UPI Fraud Detection ML Service",
+    59→    description="Academic research prototype — FastAPI service exposing "
+    60→                "transaction fraud detection, multilingual message scam detection, "
+    61→                "risk fusion, SHAP/LIME XAI, PSI drift detection, and adaptive "
+    62→                "model retraining. Built on public/synthetic datasets.",
+    63→    version="1.0.0",
+    64→)
+    65→app.add_middleware(
+    66→    CORSMiddleware,
+    67→    allow_origins=["*"],
+    68→    allow_credentials=True,
+    69→    allow_methods=["*"],
+    70→    allow_headers=["*"],
+    71→)
+    72→
+    73→
+    74→def iso_now() -> str:
+    75→    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    76→
+    77→
+    78→# ---------------------------------------------------------------------------
+    79→# Model loading (lazy + cached)
+    80→# ---------------------------------------------------------------------------
+    81→_MODELS: Dict[str, Any] = {}
+    82→_MODELS_LOCK = threading.Lock()
+    83→_SHAP_BACKGROUND = None
+    84→
+    85→
+    86→def _load_json(p: Path) -> dict:
+    87→    if not p.exists():
+    88→        return {}
+    89→    return json.loads(p.read_text())
+    90→
+    91→
+    92→def get_transaction_metadata() -> dict:
+    93→    return _load_json(METADATA_DIR / "transaction_models.json")
+    94→
+    95→
+    96→def get_nlp_metadata() -> dict:
+    97→    return _load_json(METADATA_DIR / "nlp_models.json")
+    98→
+    99→
+   100→def get_dataset_audit() -> dict:
+   101→    return _load_json(METADATA_DIR / "dataset_audit.json")
+   102→
+   103→
+   104→def get_drift_reference() -> dict:
+   105→    return _load_json(METADATA_DIR / "drift_reference.json")
+   106→
+   107→
+   108→def get_drift_history() -> List[dict]:
+   109→    p = METADATA_DIR / "drift_history.json"
+   110→    if not p.exists():
+   111→        return []
+   112→    try:
+   113→        return json.loads(p.read_text())
+   114→    except Exception:
+   115→        return []
+   116→
+   117→
+   118→def load_all_models() -> Dict[str, Any]:
+   119→    """Load all trained model pipelines into memory (cached)."""
+   120→    global _SHAP_BACKGROUND
+   121→    with _MODELS_LOCK:
+   122→        if _MODELS.get("_loaded"):
+   123→            return _MODELS
+   124→        # Transaction models
+   125→        for name in ("transaction_xgboost", "transaction_lr", "transaction_rf"):
+   126→            p = MODELS_DIR / f"{name}.joblib"
+   127→            if p.exists():
+   128→                _MODELS[name] = joblib.load(p)
+   129→        # NLP models
+   130→        nlp_files = {
+   131→            "nlp_hi": "nlp_tfidf_lr_hi.joblib",
+   132→            "nlp_hinglish": "nlp_tfidf_lr_hinglish.joblib",
+   133→            "nlp_en": "nlp_tfidf_lr_en.joblib",
+   134→            "nlp_combined": "nlp_tfidf_lr_combined.joblib",
+   135→        }
+   136→        for name, fname in nlp_files.items():
+   137→            p = MODELS_DIR / fname
+   138→            if p.exists():
+   139→                _MODELS[name] = joblib.load(p)
+   140→        # Precomputed SHAP background (small, 100 rows)
+   141→        bg_path = MODELS_DIR / "shap_background.joblib"
+   142→        if bg_path.exists():
+   143→            try:
+   144→                _SHAP_BACKGROUND = joblib.load(bg_path)
+   145→            except Exception:
+   146→                _SHAP_BACKGROUND = None
+   147→        _MODELS["_loaded"] = True
+   148→    return _MODELS
+   149→
+   150→
+   151→# Load models eagerly at startup
+   152→load_all_models()
+   153→
+   154→
+   155→# ---------------------------------------------------------------------------
+   156→# Pydantic schemas
+   157→# ---------------------------------------------------------------------------
+   158→class TransactionInput(BaseModel):
+   159→    step: int = Field(0, description="Time step (1 hour window in PaySim)")
+   160→    type: str = Field(..., description="Transaction type: CASH_IN, CASH_OUT, DEBIT, PAYMENT, TRANSFER")
+   161→    amount: float = Field(..., ge=0)
+   162→    oldbalanceOrg: float = Field(0.0)
+   163→    newbalanceOrig: float = Field(0.0)
+   164→    oldbalanceDest: float = Field(0.0)
+   165→    newbalanceDest: float = Field(0.0)
+   166→
+   167→
+   168→class MessageInput(BaseModel):
+   169→    text: str
+   170→    language: Optional[str] = Field(None, description="Optional: hi | hinglish | en. If omitted, auto-detected.")
+   171→
+   172→
+   173→class RiskInput(BaseModel):
+   174→    transaction: Optional[TransactionInput] = None
+   175→    message: Optional[MessageInput] = None
+   176→    transaction_probability: Optional[float] = Field(None, ge=0, le=1)
+   177→    message_probability: Optional[float] = Field(None, ge=0, le=1)
+   178→    fusion_method: Optional[str] = Field(None, description="max | weighted")
+   179→
+   180→
+   181→class RetrainInput(BaseModel):
+   182→    model_name: str
+   183→    drift_window: Optional[Dict[str, Any]] = None
+   184→
+   185→
+   186→# ---------------------------------------------------------------------------
+   187→# Feature engineering for transactions
+   188→# ---------------------------------------------------------------------------
+   189→def derive_transaction_features(tx: TransactionInput) -> pd.DataFrame:
+   190→    """Build the 14-feature PaySim row from raw input."""
+   191→    type_ = (tx.type or "").upper()
+   192→    type_map = {
+   193→        "CASH_IN": "type_CASH_IN",
+   194→        "CASH_OUT": "type_CASH_OUT",
+   195→        "DEBIT": "type_DEBIT",
+   196→        "PAYMENT": "type_PAYMENT",
+   197→        "TRANSFER": "type_TRANSFER",
+   198→    }
+   199→    feat = {
+   200→        "amount": float(tx.amount),
+   201→        "oldbalanceOrg": float(tx.oldbalanceOrg),
+   202→        "newbalanceOrig": float(tx.newbalanceOrig),
+   203→        "oldbalanceDest": float(tx.oldbalanceDest),
+   204→        "newbalanceDest": float(tx.newbalanceDest),
+   205→    }
+   206→    # Derived balance-change features
+   207→    feat["orig_balance_change"] = feat["newbalanceOrig"] - feat["oldbalanceOrg"]
+   208→    feat["dest_balance_change"] = feat["newbalanceDest"] - feat["oldbalanceDest"]
+   209→    feat["amount_to_orig_balance"] = (
+   210→        feat["amount"] / feat["oldbalanceOrg"]
+   211→        if feat["oldbalanceOrg"] else 0.0
+   212→    )
+   213→    feat["amount_to_dest_balance"] = (
+   214→        feat["amount"] / feat["oldbalanceDest"]
+   215→        if feat["oldbalanceDest"] else 0.0
+   216→    )
+   217→    # Type one-hot
+   218→    for col_suffix in ["CASH_IN", "CASH_OUT", "DEBIT", "PAYMENT", "TRANSFER"]:
+   219→        feat[f"type_{col_suffix}"] = 1.0 if type_ == col_suffix else 0.0
+   220→    # Build dataframe with feature order
+   221→    row = {f: feat[f] for f in TX_FEATURES}
+   222→    return pd.DataFrame([row], columns=TX_FEATURES)
+   223→
+   224→
+   225→# ---------------------------------------------------------------------------
+   226→# Language detection
+   227→# ---------------------------------------------------------------------------
+   228→DEVANAGARI_RE = re.compile(r"[\u0900-\u097F]")
+   229→HINGLISH_TOKENS = re.compile(
+   230→    r"\b(aap|aapka|aapke|karo|kar|hai|hain|nahi|nahin|se|ko|ki|ka|ke|liye|"
+   231→    r"rupaye|rupee|paisa|otp|kyc|turant|abhi|jaldi|verify|account|block|"
+   232→    r"warning|kaise|kyu|kya|ho|raha|rahe|chahiye|dena|deni|leva|liya|"
+   233→    r"payment|refund|bhej|bheji|samjh|smjh|madad|help|"
+   234→    r"aapko|mera|meri|tum|tumhara)\b",
+   235→    re.IGNORECASE,
+   236→)
+   237→
+   238→
+   239→def detect_language(text: str) -> str:
+   240→    if not text:
+   241→        return "en"
+   242→    if DEVANAGARI_RE.search(text):
+   243→        return "hi"
+   244→    if HINGLISH_TOKENS.search(text):
+   245→        return "hinglish"
+   246→    return "en"
+   247→
+   248→
+   249→# ---------------------------------------------------------------------------
+   250→# Endpoints
+   251→# ---------------------------------------------------------------------------
+   252→@app.get("/health")
+   253→def health() -> Dict[str, Any]:
+   254→    """Service health + model loading status + provenance disclosure."""
+   255→    tx_meta = get_transaction_metadata()
+   256→    nlp_meta = get_nlp_metadata()
+   257→    audit = get_dataset_audit()
+   258→    tx_models = tx_meta.get("models", {})
+   259→    nlp_models = nlp_meta.get("models", {})
+   260→
+   261→    def _loaded(model_name: str) -> bool:
+   262→        return (model_name in _MODELS) or (
+   263→            model_name in tx_models and tx_models[model_name].get("artifact")
+   264→            and (MODELS_DIR / Path(tx_models[model_name]["artifact"]).name).exists()
+   265→        )
+   266→
+   267→    return {
+   268→        "status": "ok",
+   269→        "models_loaded": {
+   270→            "transaction": _loaded("transaction_xgboost"),
+   271→            "nlp_english": "nlp_en" in _MODELS,
+   272→            "nlp_hindi": "nlp_hi" in _MODELS,
+   273→            "nlp_hinglish": "nlp_hinglish" in _MODELS,
+   274→            "nlp_combined": "nlp_combined" in _MODELS,
+   275→        },
+   276→        "model_versions": {
+   277→            "transaction_xgboost": tx_models.get("transaction_xgboost", {}).get("version"),
+   278→            "transaction_lr": tx_models.get("transaction_lr", {}).get("version"),
+   279→            "transaction_rf": tx_models.get("transaction_rf", {}).get("version"),
+   280→            "nlp_hi": nlp_models.get("nlp_hi", {}).get("version"),
+   281→            "nlp_hinglish": nlp_models.get("nlp_hinglish", {}).get("version"),
+   282→            "nlp_en": nlp_models.get("nlp_en", {}).get("version"),
+   283→            "nlp_combined": nlp_models.get("nlp_combined", {}).get("version"),
+   284→        },
+   285→        "provenance_disclosure": {
+   286→            "PaySim": "public mobile-money simulator (NOT real UPI banking data)",
+   287→            "Hindi": "synthetic (source=Synthetic)",
+   288→            "Hinglish": "synthetic (source=Synthetic)",
+   289→            "English": nlp_meta.get("english_status", "not_trained"),
+   290→        },
+   291→        "disclaimer": DISCLAIMER,
+   292→        "service": "ml-service",
+   293→        "timestamp": iso_now(),
+   294→    }
+   295→
+   296→
+   297→@app.post("/api/v1/transactions/analyze")
+   298→def analyze_transaction(tx: TransactionInput) -> Dict[str, Any]:
+   299→    """Run XGBoost fraud prediction + SHAP explanation on a single transaction."""
+   300→    if "transaction_xgboost" not in _MODELS:
+   301→        raise HTTPException(status_code=503,
+   302→                            detail="Transaction model not loaded. Run train.py first.")
+   303→    pipeline = _MODELS["transaction_xgboost"]
+   304→    X = derive_transaction_features(tx)
+   305→    proba = float(pipeline.predict_proba(X)[0, 1])
+   306→    pred = int(proba >= 0.5)
+   307→    score, level = transaction_risk_score(proba)
+   308→
+   309→    # SHAP explanation
+   310→    tx_meta = get_transaction_metadata()
+   311→    # Use precomputed SHAP background (100 legitimate rows saved by train.py)
+   312→    background = _SHAP_BACKGROUND
+   313→    explainer = TransactionExplainer(
+   314→        pipeline, feature_names=TX_FEATURES,
+   315→        background=background, method="auto"
+   316→    )
+   317→    explanation = explainer.explain(X)
+   318→
+   319→    return {
+   320→        "prediction": pred,
+   321→        "probability": round(proba, 6),
+   322→        "risk_score": round(score, 4),
+   323→        "risk_level": level,
+   324→        "model_version": tx_meta.get("active_version", "1.0.0"),
+   325→        "model_name": "transaction_xgboost",
+   326→        "explanation": explanation,
+   327→        "input_features": X.iloc[0].to_dict(),
+   328→        "disclaimer": DISCLAIMER,
+   329→    }
+   330→
+   331→
+   332→@app.post("/api/v1/messages/analyze")
+   333→def analyze_message(msg: MessageInput) -> Dict[str, Any]:
+   334→    """Run NLP scam prediction + LIME explanation on a single message."""
+   335→    # Auto-detect language if not provided
+   336→    language = (msg.language or "").lower()
+   337→    if language not in ("hi", "hinglish", "en"):
+   338→        language = detect_language(msg.text)
+   339→
+   340→    model_name_map = {"hi": "nlp_hi", "hinglish": "nlp_hinglish", "en": "nlp_en"}
+   341→    model_name = model_name_map.get(language, "nlp_en")
+   342→    if model_name not in _MODELS:
+   343→        # Fall back to combined
+   344→        if "nlp_combined" in _MODELS:
+   345→            model_name = "nlp_combined"
+   346→        else:
+   347→            raise HTTPException(
+   348→                status_code=503,
+   349→                detail=f"No NLP model available for language={language}; "
+   350→                       f"train models first."
+   351→            )
+   352→    pipeline = _MODELS[model_name]
+   353→    text = msg.text
+   354→    proba = float(pipeline.predict_proba([text])[0, 1])
+   355→    pred = int(proba >= 0.5)
+   356→    score, level = message_risk_score(proba)
+   357→
+   358→    # LIME explanation
+   359→    explainer = MessageExplainer(pipeline, class_names=("legitimate", "scam"))
+   360→    explanation = explainer.explain(text, num_features=10)
+   361→
+   362→    nlp_meta = get_nlp_metadata()
+   363→    version = nlp_meta.get("models", {}).get(model_name, {}).get("version", "1.0.0")
+   364→    return {
+   365→        "prediction": pred,
+   366→        "probability": round(proba, 6),
+   367→        "risk_score": round(score, 4),
+   368→        "risk_level": level,
+   369→        "model_version": version,
+   370→        "model_name": model_name,
+   371→        "language_detected": language,
+   372→        "explanation": explanation,
+   373→        "disclaimer": DISCLAIMER,
+   374→    }
+   375→
+   376→
+   377→@app.post("/api/v1/risk/analyze")
+   378→def analyze_risk(req: RiskInput) -> Dict[str, Any]:
+   379→    """Fuse transaction + message risks into a unified score."""
+   380→    tx_prob = req.transaction_probability
+   381→    msg_prob = req.message_probability
+   382→    # If pre-computed probabilities are not provided but raw inputs are, compute them
+   383→    if tx_prob is None and req.transaction is not None:
+   384→        if "transaction_xgboost" in _MODELS:
+   385→            X = derive_transaction_features(req.transaction)
+   386→            tx_prob = float(_MODELS["transaction_xgboost"].predict_proba(X)[0, 1])
+   387→    if msg_prob is None and req.message is not None:
+   388→        # Auto-detect language
+   389→        lang = (req.message.language or "").lower()
+   390→        if lang not in ("hi", "hinglish", "en"):
+   391→            lang = detect_language(req.message.text)
+   392→        model_name = {"hi": "nlp_hi", "hinglish": "nlp_hinglish",
+   393→                      "en": "nlp_en"}.get(lang, "nlp_en")
+   394→        if model_name not in _MODELS and "nlp_combined" in _MODELS:
+   395→            model_name = "nlp_combined"
+   396→        if model_name in _MODELS:
+   397→            msg_prob = float(_MODELS[model_name].predict_proba([req.message.text])[0, 1])
+   398→    return build_risk_response(tx_prob, msg_prob, method=req.fusion_method)
+   399→
+   400→
+   401→@app.get("/api/v1/dashboard/summary")
+   402→def dashboard_summary() -> Dict[str, Any]:
+   403→    """Service-side aggregates from metadata/*.json.
+   404→
+   405→    Note: actual prediction history is persisted by the Next.js side via Prisma.
+   406→    This endpoint returns reference data: model metrics, drift summary,
+   407→    and dataset audit summary.
+   408→    """
+   409→    tx_meta = get_transaction_metadata()
+   410→    nlp_meta = get_nlp_metadata()
+   411→    audit = get_dataset_audit()
+   412→    drift_ref = get_drift_reference()
+   413→    drift_history = get_drift_history()
+   414→
+   415→    # Build model_metrics list
+   416→    model_metrics: List[Dict[str, Any]] = []
+   417→    for name, info in tx_meta.get("models", {}).items():
+   418→        m = info.get("metrics", {})
+   419→        model_metrics.append({
+   420→            "name": name, "version": info.get("version"),
+   421→            "type": info.get("type"),
+   422→            "active": info.get("active", False),
+   423→            "dataset_version": info.get("dataset_version"),
+   424→            "metrics": {
+   425→                "precision": m.get("precision"),
+   426→                "recall": m.get("recall"),
+   427→                "f1": m.get("f1"),
+   428→                "roc_auc": m.get("roc_auc"),
+   429→                "pr_auc": m.get("pr_auc"),
+   430→            },
+   431→            "training_timestamp": info.get("training_timestamp"),
+   432→        })
+   433→    for name, info in nlp_meta.get("models", {}).items():
+   434→        m = info.get("metrics", {}) if info.get("trained") else {}
+   435→        model_metrics.append({
+   436→            "name": name, "version": info.get("version"),
+   437→            "type": info.get("type"),
+   438→            "active": info.get("active", False),
+   439→            "trained": info.get("trained", False),
+   440→            "language": info.get("language"),
+   441→            "status": info.get("status"),
+   442→            "metrics": {
+   443→                "precision": m.get("precision"),
+   444→                "recall": m.get("recall"),
+   445→                "f1": m.get("f1"),
+   446→                "roc_auc": m.get("roc_auc"),
+   447→                "pr_auc": m.get("pr_auc"),
+   448→            },
+   449→            "training_timestamp": info.get("training_timestamp"),
+   450→        })
+   451→
+   452→    # Dataset audit summary (counts only)
+   453→    datasets_summary = {}
+   454→    p = audit.get("datasets", {})
+   455→    if "PaySim" in p:
+   456→        ps = p["PaySim"]["splits"]
+   457→        datasets_summary["PaySim"] = {
+   458→            "train_rows": ps.get("train", {}).get("row_count"),
+   459→            "test_rows": ps.get("test", {}).get("row_count"),
+   460→            "validation_rows": ps.get("validation", {}).get("row_count"),
+   461→            "fraud_rate_train": ps.get("train", {}).get("fraud_rate"),
+   462→            "provenance": p["PaySim"]["provenance"],
+   463→        }
+   464→    for ds in ("Hindi", "Hinglish", "English"):
+   465→        if ds in p:
+   466→            d = p[ds]
+   467→            datasets_summary[ds] = {
+   468→                "available": d.get("available", False),
+   469→                "rows": d.get("stats", {}).get("row_count") if d.get("available") else 0,
+   470→                "provenance": d.get("provenance"),
+   471→            }
+   472→
+   473→    # Drift summary from the latest drift_history events
+   474→    drift_summary = {
+   475→        "total_events": len(drift_history),
+   476→        "latest_event": drift_history[-1] if drift_history else None,
+   477→        "reference_features_count": len(
+   478→            [k for k in drift_ref.keys() if k not in
+   479→             ("generated_at", "source", "dataset_version", "features", "bins_default")]
+   480→        ),
+   481→    }
+   482→
+   483→    return {
+   484→        "service": "ml-service",
+   485→        "generated_at": iso_now(),
+   486→        "disclaimer": DISCLAIMER,
+   487→        "model_metrics": model_metrics,
+   488→        "datasets_summary": datasets_summary,
+   489→        "drift_summary": drift_summary,
+   490→    }
+   491→
+   492→
+   493→@app.get("/api/v1/dashboard/trends")
+   494→def dashboard_trends() -> Dict[str, Any]:
+   495→    """Return fraud-rate trend by PaySim step-window (real data, not hardcoded)."""
+   496→    audit = get_dataset_audit()
+   497→    p = audit.get("datasets", {}).get("PaySim", {})
+   498→    splits = p.get("splits", {})
+   499→    train_trend = splits.get("train", {}).get("temporal_per_step_window", [])
+   500→    test_trend = splits.get("test", {}).get("temporal_per_step_window", [])
+   501→    val_trend = splits.get("validation", {}).get("temporal_per_step_window", [])
+   502→
+   503→    # Combined timestamps (step_windows) + risk/fraud-rate trends
+   504→    step_windows = [r["step_window"] for r in train_trend]
+   505→    fraud_rate_train = [r["fraud_rate"] for r in train_trend]
+   506→    fraud_count_train = [r["fraud_count"] for r in train_trend]
+   507→    mean_amount_train = [r["mean_amount"] for r in train_trend]
+   508→
+   509→    return {
+   510→        "service": "ml-service",
+   511→        "generated_at": iso_now(),
+   512→        "disclaimer": DISCLAIMER,
+   513→        "source": "PaySim training split (public mobile-money simulator)",
+   514→        "timestamps": step_windows,
+   515→        "fraud_rate_trend": fraud_rate_train,
+   516→        "fraud_count_trend": fraud_count_train,
+   517→        "risk_trend": mean_amount_train,  # mean transaction amount per window as proxy
+   518→        "validation_trend": [
+   519→            {"step_window": r["step_window"], "fraud_rate": r["fraud_rate"]}
+   520→            for r in val_trend
+   521→        ],
+   522→        "test_trend": [
+   523→            {"step_window": r["step_window"], "fraud_rate": r["fraud_rate"]}
+   524→            for r in test_trend
+   525→        ],
+   526→    }
+   527→
+   528→
+   529→@app.get("/api/v1/drift/status")
+   530→def drift_status() -> Dict[str, Any]:
+   531→    """Compute PSI on the validation split as 'current' vs the training
+   532→    reference distribution. Real PSI, real distributions."""
+   533→    drift_ref = get_drift_reference()
+   534→    if not drift_ref:
+   535→        raise HTTPException(status_code=503,
+   536→                            detail="Drift reference not found. Run train.py first.")
+   537→    try:
+   538→        val_df = load_paysim_split("validation")
+   539→    except Exception as e:
+   540→        raise HTTPException(status_code=500, detail=f"Validation split load failed: {e}")
+   541→
+   542→    # Restrict to features in the reference
+   543→    features_in_ref = [k for k in drift_ref.keys() if k not in
+   544→                       ("generated_at", "source", "dataset_version",
+   545→                        "features", "bins_default")]
+   546→    available = [f for f in features_in_ref if f in val_df.columns]
+   547→    statuses = evaluate_drift(val_df, drift_ref, features=available)
+   548→    return {
+   549→        "generated_at": iso_now(),
+   550→        "source": "PSI on PaySim validation split vs training reference",
+   551→        "features": statuses,
+   552→        "thresholds": {
+   553→            "watch": float(os.environ.get("DRIFT_WATCH_THRESHOLD", "0.10")),
+   554→            "drift": float(os.environ.get("DRIFT_DRIFT_THRESHOLD", "0.25")),
+   555→        },
+   556→        "disclaimer": DISCLAIMER,
+   557→    }
+   558→
+   559→
+   560→@app.get("/api/v1/drift/history")
+   561→def drift_history_endpoint() -> Dict[str, Any]:
+   562→    """Return all previously persisted drift/retrain events."""
+   563→    events = get_drift_history()
+   564→    return {
+   565→        "events": events,
+   566→        "count": len(events),
+   567→        "disclaimer": DISCLAIMER,
+   568→    }
+   569→
+   570→
+   571→@app.get("/api/v1/models")
+   572→def models_endpoint() -> Dict[str, Any]:
+   573→    """Return all model info with active flags."""
+   574→    tx_meta = get_transaction_metadata()
+   575→    nlp_meta = get_nlp_metadata()
+   576→    models: List[Dict[str, Any]] = []
+   577→    for name, info in tx_meta.get("models", {}).items():
+   578→        m = info.get("metrics", {})
+   579→        models.append({
+   580→            "name": name,
+   581→            "version": info.get("version"),
+   582→            "type": info.get("type"),
+   583→            "active": info.get("active", False),
+   584→            "trained": True,
+   585→            "dataset_version": info.get("dataset_version"),
+   586→            "training_timestamp": info.get("training_timestamp"),
+   587→            "hyperparameters": info.get("hyperparameters"),
+   588→            "metrics": {
+   589→                "precision": m.get("precision"),
+   590→                "recall": m.get("recall"),
+   591→                "f1": m.get("f1"),
+   592→                "roc_auc": m.get("roc_auc"),
+   593→                "pr_auc": m.get("pr_auc"),
+   594→            },
+   595→            "artifact": info.get("artifact"),
+   596→        })
+   597→    for name, info in nlp_meta.get("models", {}).items():
+   598→        m = info.get("metrics", {}) if info.get("trained") else {}
+   599→        models.append({
+   600→            "name": name,
+   601→            "version": info.get("version"),
+   602→            "type": info.get("type"),
+   603→            "active": info.get("active", False),
+   604→            "trained": info.get("trained", False),
+   605→            "status": info.get("status"),
+   606→            "language": info.get("language"),
+   607→            "dataset_version": info.get("dataset_version"),
+   608→            "training_timestamp": info.get("training_timestamp"),
+   609→            "hyperparameters": info.get("hyperparameters"),
+   610→            "metrics": {
+   611→                "precision": m.get("precision"),
+   612→                "recall": m.get("recall"),
+   613→                "f1": m.get("f1"),
+   614→                "roc_auc": m.get("roc_auc"),
+   615→                "pr_auc": m.get("pr_auc"),
+   616→            },
+   617→            "artifact": info.get("artifact"),
+   618→        })
+   619→    return {
+   620→        "models": models,
+   621→        "active_transaction_model": tx_meta.get("active_model"),
+   622→        "english_status": nlp_meta.get("english_status"),
+   623→        "generated_at": iso_now(),
+   624→        "disclaimer": DISCLAIMER,
+   625→    }
+   626→
+   627→
+   628→@app.post("/api/v1/models/retrain")
+   629→def retrain_endpoint(req: RetrainInput) -> Dict[str, Any]:
+   630→    """Trigger candidate retraining + evaluation. Writes outcome to
+   631→    metadata/drift_history.json as a retrain event."""
+   632→    # Lazy import to avoid circular deps at module load time
+   633→    import adaptive
+   634→    try:
+   635→        prep = adaptive.prepare_candidate_retraining(
+   636→            req.model_name, drift_window=req.drift_window
+   637→        )
+   638→    except Exception as e:
+   639→        raise HTTPException(status_code=400, detail=f"prepare_candidate_retraining failed: {e}")
+   640→    try:
+   641→        outcome = adaptive.evaluate_candidate(req.model_name)
+   642→    except FileNotFoundError as e:
+   643→        raise HTTPException(status_code=404, detail=str(e))
+   644→    except Exception as e:
+   645→        raise HTTPException(status_code=500, detail=f"evaluate_candidate failed: {e}")
+   646→
+   647→    # Persist to drift_history.json (append-only)
+   648→    event = {
+   649→        "id": f"retrain-{int(time.time())}",
+   650→        "type": "retrain",
+   651→        "model_name": req.model_name,
+   652→        "drift_window": req.drift_window,
+   653→        "candidate_version": prep.get("candidate_version"),
+   654→        "old_metrics": outcome["old_metrics"],
+   655→        "new_metrics": outcome["new_metrics"],
+   656→        "comparison": outcome["comparison"],
+   657→        "promoted": outcome["promoted"],
+   658→        "outcome": outcome["outcome"],
+   659→        "created_at": iso_now(),
+   660→    }
+   661→    adaptive.append_drift_event(event)
+   662→
+   663→    # Reload models in memory if promoted
+   664→    if outcome["promoted"]:
+   665→        # Force reload of models from disk
+   666→        with _MODELS_LOCK:
+   667→            _MODELS.clear()
+   668→        load_all_models()
+   669→
+   670→    return {
+   671→        "candidate_version": prep.get("candidate_version"),
+   672→        "old_metrics": outcome["old_metrics"],
+   673→        "new_metrics": outcome["new_metrics"],
+   674→        "promoted": outcome["promoted"],
+   675→        "comparison": outcome["comparison"],
+   676→        "outcome": outcome["outcome"],
+   677→        "event_id": event["id"],
+   678→        "created_at": event["created_at"],
+   679→        "disclaimer": DISCLAIMER,
+   680→    }
+   681→
+   682→
+   683→# ---------------------------------------------------------------------------
+   684→# Startup event (in case load_all_models didn't fire at import time)
+   685→# ---------------------------------------------------------------------------
+   686→@app.on_event("startup")
+   687→def _startup() -> None:
+   688→    load_all_models()
+   689→    print(f"[index] models loaded: {list(k for k in _MODELS if k != '_loaded')}")
+   690→
+   691→
+   692→# ---------------------------------------------------------------------------
+   693→# Run as script
+   694→# ---------------------------------------------------------------------------
+   695→if __name__ == "__main__":
+   696→    import uvicorn
+   697→    uvicorn.run(app, host="0.0.0.0", port=4000)
+   698→
