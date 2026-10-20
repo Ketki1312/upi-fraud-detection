@@ -310,3 +310,23 @@ Stage Summary:
 - ML service now auto-starts whenever the Next.js dev server starts (including after sandbox resets). No manual intervention needed.
 - If the ML service ever crashes, a Next.js dev server restart (e.g., touching `next.config.ts`) will re-spawn it via the instrumentation hook.
 - The `shap` and `lime` packages need to be present in the venv (`/home/z/.venv/bin/python3`). If a future sandbox reset removes them, run `pip install shap lime` then trigger a Next.js restart.
+
+---
+Task ID: FIX-ML-SERVICE-OFFLINE-2
+Agent: orchestrator (Z.ai Code)
+Task: Fix "ML service offline" (recurring) — sandbox reset wiped shap/lime again; made launcher self-healing
+
+Work Log:
+- Symptom: User reported "ML service offline" again. Diagnosis: the sandbox had reset the venv since the last fix, wiping `shap` (and `lime`). The instrumentation hook (src/instrumentation.ts) tried to spawn uvicorn but it failed with `ModuleNotFoundError: No module named 'shap'` (visible in mini-services/ml-service/ml-service.log).
+- Immediate fix: Reinstalled all required packages with `/home/z/.venv/bin/python3 -m pip install shap lime scikit-learn xgboost fastapi "uvicorn[standard]" pandas numpy joblib scipy pydantic`.
+- Permanent fix (self-healing): Created `mini-services/ml-service/run.sh` — a bash wrapper that:
+  1. Runs `pip install --quiet` for all required packages (idempotent — skips already-installed packages in ~1-2s).
+  2. Then `exec`s uvicorn on port 4000.
+- Updated `src/instrumentation.ts` to spawn `bash run.sh` instead of `python3 -m uvicorn` directly. Now every Next.js startup (including after sandbox resets) ensures packages are present before starting the ML service.
+- Triggered a Next.js restart (touch next.config.ts) → instrumentation ran → run.sh did pip install → uvicorn started. ML service is now a child of `next-server` (PID 1444, SID 894 — allowlisted) and survived the 35s persistence test.
+- Verified end-to-end: transaction analyzer returns real XGBoost+SHAP prediction; scam message analyzer returns real TF-IDF+LIME detection (Hinglish scam → CRITICAL); browser header shows "ML service: online".
+
+Stage Summary:
+- Files added/modified: `mini-services/ml-service/run.sh` (new, executable), `src/instrumentation.ts` (now calls run.sh).
+- The ML service is now self-healing across sandbox resets: the run.sh wrapper auto-reinstalls any wiped pip packages before starting uvicorn. No manual `pip install` should ever be needed again.
+- To manually restart the ML service if needed: `touch /home/z/my-project/next.config.ts` (triggers Next.js dev server restart, which re-runs the instrumentation hook, which re-spawns the ML service via run.sh).

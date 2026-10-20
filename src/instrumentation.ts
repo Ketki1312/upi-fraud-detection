@@ -50,21 +50,25 @@ export async function register() {
     return;
   }
 
+  const runScript = resolve(mlDir, "run.sh");
+  if (!existsSync(runScript)) {
+    console.warn(`[instrumentation] run.sh not found at ${runScript} — skipping spawn.`);
+    return;
+  }
+
   try {
     mkdirSync(dirname(LOG_FILE), { recursive: true });
     const logStream = appendFileSync.bind(null, LOG_FILE);
-    logStream(`\n[instrumentation ${new Date().toISOString()}] spawning ML service...\n`);
+    logStream(`\n[instrumentation ${new Date().toISOString()}] spawning ML service via run.sh...\n`);
 
-    const child = spawn(
-      "/home/z/.venv/bin/python3",
-      ["-m", "uvicorn", "index:app", "--host", "0.0.0.0", "--port", String(ML_PORT)],
-      {
-        cwd: mlDir,
-        stdio: ["ignore", "pipe", "pipe"],
-        detached: false, // keep it a child of the Next.js process so it inherits the allowlisted session
-        env: { ...process.env, PYTHONUNBUFFERED: "1" },
-      },
-    );
+    // Use the self-healing run.sh wrapper, which ensures pip packages are
+    // present (the sandbox can wipe the venv between sessions) before exec'ing uvicorn.
+    const child = spawn("bash", [runScript], {
+      cwd: mlDir,
+      stdio: ["ignore", "pipe", "pipe"],
+      detached: false, // keep it a child of the Next.js process so it inherits the allowlisted session
+      env: { ...process.env, PYTHONUNBUFFERED: "1" },
+    });
 
     child.stdout?.on("data", (d) => appendFileSync(LOG_FILE, d.toString()));
     child.stderr?.on("data", (d) => appendFileSync(LOG_FILE, d.toString()));
