@@ -58,3 +58,4 @@ server.log
 __pycache__/
 *.pyc
 mini-services/ml-service/__pycache__/
+/PaySim_Preprocessed_Ready_for_ZAI.zip
