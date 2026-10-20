@@ -52,3 +52,9 @@ prompt
 server.log
 # Skills directory
 /skills/
+
+# Large archives and local artifacts
+*.tar
+__pycache__/
+*.pyc
+mini-services/ml-service/__pycache__/
